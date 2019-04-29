@@ -26,7 +26,7 @@ import pandas as pd
 import keras
 import matplotlib.pyplot as plt
 
-from scripts.multistep_univariate_cnn import evaluate_model, split_dataset, summarize_scores
+from scripts.multistep_univariate_cnn import evaluate_forecasts, split_dataset, summarize_scores
 
 """
 First, we must update the preparation of the training data to include all of the eight 
@@ -82,7 +82,7 @@ def forecast(model, history, n_input):
     # reshape into [1, n_input, n]
     input_x = input_x.reshape((1, input_x.shape[0], input_x.shape[1]))
     # forecast the next week
-    yhat = model.predict(input_x, verboase=0)
+    yhat = model.predict(input_x, verbose=0)
     return yhat[0]  # we only want the vector forecast
 
 
@@ -131,6 +131,28 @@ We now have all of the elements required to develop a multi-channel CNN for mult
 data to make multi-step time series forecasts.
 """
 
+
+# evaluate a single model
+def evaluate_model(train, test, n_inputs):
+    # fit model
+    model = build_model(train, n_inputs)
+    # history is a list of weekly data
+    history = [x for x in train]
+    # walk-forward validation over each week
+    predictions = []
+    for i in range(len(test)):
+        # predict the week
+        yhat_sequence = forecast(model, history, n_inputs)
+        # store the predictions
+        predictions.append(yhat_sequence)
+        # get real observation and add to history for predicting the next week
+        history.append(test[i, :])
+    # evaluate predictions days for each week
+    predictions = np.array(predictions)
+    score, scores = evaluate_forecasts(test[:, :, 0], predictions)
+    return score, scores
+
+
 if __name__ == '__main__':
     dataset = pd.read_csv('../data/household_power_consumption_days.csv',
                           header=0,
@@ -138,7 +160,7 @@ if __name__ == '__main__':
                           parse_dates=['datetime'],
                           index_col=['datetime'])
     train_, test_ = split_dataset(dataset.values)
-    n_input_ = 7
+    n_input_ = 14
     score_, scores_ = evaluate_model(train_, test_, n_input_)
     summarize_scores('cnn', score_, scores_)
     days = ['sun', 'mon', 'tue', 'wed', 'thr', 'fri', 'sat']

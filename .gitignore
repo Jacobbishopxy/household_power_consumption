@@ -116,6 +116,7 @@ logs
 /data/*
 !/data/README.md
 !/data/household_power_consumption.rar
+/test
 
 
 
