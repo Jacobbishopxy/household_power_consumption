@@ -8,8 +8,8 @@
 
 import numpy as np
 
-from docs.p2_evaluation_metric import evaluate_forecasts
-from docs.p6_multi_step_time_series_forecastin_with_a_univariate_cnn import build_model
+from docs.develop_convolutional_neural_networks_for_multi_step_time_series_forecasting.p2_evaluation_metric import evaluate_forecasts
+from docs.develop_convolutional_neural_networks_for_multi_step_time_series_forecasting.p6_multi_step_time_series_forecastin_with_a_univariate_cnn import build_model
 
 
 """

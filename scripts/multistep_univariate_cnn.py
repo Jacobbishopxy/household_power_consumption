@@ -27,7 +27,7 @@ def split_dataset(data):
 
 def evaluate_forecasts(actual, predicted):
     """
-    evaluate one or more weekly forecasts against expected valuse
+    evaluate one or more weekly forecasts against expected values
     :param actual:
     :param predicted:
     :return:
@@ -129,7 +129,7 @@ def forecast(model, history, n_input):
     input_x = input_x.reshape((1, len(input_x), 1))
     # forevast the next week
     yhat = model.predict(input_x, verbose=0)
-    # we only want the vector forevast
+    # we only want the vector forecast
     return yhat[0]
 
 
