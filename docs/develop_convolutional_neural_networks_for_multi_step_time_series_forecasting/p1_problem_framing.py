@@ -34,7 +34,7 @@ power per day.
 """
 
 
-dataset = pd.read_csv('../data/household_power_consumption.csv',
+dataset = pd.read_csv('../../data/household_power_consumption.csv',
                       header=0,
                       infer_datetime_format=True,
                       parse_dates=['datetime'],
@@ -46,6 +46,6 @@ daily_data = daily_groups.sum()
 print(daily_data.shape)
 print(daily_data.head())
 
-daily_data.to_csv('../data/household_power_consumption_days.csv')
+daily_data.to_csv('../../data/household_power_consumption_days.csv')
 
 

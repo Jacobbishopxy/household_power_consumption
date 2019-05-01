@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 dataset = pd.read_csv(
-    '../data/household_power_consumption.txt',
+    '../../data/household_power_consumption.txt',
     sep=';',
     header=0,
     low_memory=False,
@@ -38,4 +38,4 @@ v = dataset.values
 dataset['sub_metering_4'] = (v[:, 0] * 1000 / 60) - (v[:, 4] + v[:, 5] + v[:, 6])
 
 # save updated dataset
-dataset.to_csv('../data/household_power_consumption.csv')
+dataset.to_csv('../../data/household_power_consumption.csv')

@@ -43,7 +43,7 @@ def split_dataset(data):
     return _train, _test
 
 
-dataset = pd.read_csv('../data/household_power_consumption_days.csv',
+dataset = pd.read_csv('../../data/household_power_consumption_days.csv',
                       header=0,
                       infer_datetime_format=True,
                       parse_dates=['datetime'],
