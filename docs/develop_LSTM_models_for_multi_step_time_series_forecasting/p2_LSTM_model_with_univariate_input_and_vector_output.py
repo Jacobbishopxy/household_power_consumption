@@ -48,6 +48,7 @@ import pandas as pd
 import keras
 from sklearn.metrics import mean_squared_error
 from math import sqrt
+import matplotlib.pyplot as plt
 
 
 # convert history into inputs and outputs
@@ -121,6 +122,16 @@ modeling choice that you must carry forward when using the model.
 """
 
 
+# split a univariate dataset into train/test sets
+def split_dataset(data):
+    # split into standard weeks
+    train, test = data[1:-328], data[-328:-6]
+    # restructure into windows of weekly data
+    train = np.array(np.split(train, len(train) / 7))
+    test = np.array(np.split(test, len(test) / 7))
+    return train, test
+
+
 # make a forecast
 def forecast(model, history, n_input):
     # flatten data
@@ -134,16 +145,6 @@ def forecast(model, history, n_input):
     yhat = model.predict(input_x, verbose=0)
     # we only want the vector forecast
     return yhat[0]
-
-
-# split a univariate dataset into train/test sets
-def split_dataset(data):
-    # split into standard weeks
-    train, test = data[1:-328], data[-328:-6]
-    # restructure into windows of weekly data
-    train = np.array(np.split(train, len(train) / 7))
-    test = np.array(np.split(test, len(test) / 7))
-    return train, test
 
 
 # evaluate one or more weekly forecasts against expected values
@@ -172,8 +173,49 @@ def summarize_scores(name, score, scores):
     print('%s: [%.3f] %s' % (name, score, s_scores))
 
 
+# evaluate a single model
+def evaluate_model(train, test, n_input):
+    # fit model
+    model = build_model(train, n_input)
+    # history is a list of weekly data
+    history = [x for x in train]
+    # walk-forward validation over each week
+    predictions = []
+    for i in range(len(test)):
+        # predict the week
+        yhat_sequence = forecast(model, history, n_input)
+        # store the predictions
+        predictions.append(yhat_sequence)
+        # get real observation and add to history for predicting the next week
+        history.append(test[i, :])
+    # evaluate predictions days for each week
+    predictions = np.array(predictions)
+    score, scores = evaluate_forecasts(test[:, :, 0], predictions)
+    return score, scores
+
+
+def main():
+    # load the new file
+    dataset = pd.read_csv('../../data/household_power_consumption_days.csv',
+                          header=0,
+                          infer_datetime_format=True,
+                          parse_dates=['datetime'],
+                          index_col=['datetime'])
+    # split into train and test
+    train, test = split_dataset(dataset.values)
+    # evaluate model and get scores
+    n_input = 7
+    score, scores = evaluate_model(train, test, n_input)
+    # summarize scores
+    summarize_scores('lstm', score, scores)
+    # plot scores
+    days = ['sun', 'mon', 'tue', 'wed', 'thr', 'fri', 'sat']
+    plt.plot(days, scores, marker='o', label='lstm')
+    plt.show()
+
+
 if __name__ == '__main__':
-    pass
+    main()
 
     """
     Running the example fits and evaluates the model, printing the overall RMSE across all seven days, and the 

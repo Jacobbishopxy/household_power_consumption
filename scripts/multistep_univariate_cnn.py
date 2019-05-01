@@ -160,7 +160,7 @@ def evaluate_model(train, test, n_input):
     return score, scores
 
 
-if __name__ == '__main__':
+def main():
     # load the new file
     dataset = pd.read_csv('../data/household_power_consumption_days.csv',
                           header=0,
@@ -168,17 +168,21 @@ if __name__ == '__main__':
                           parse_dates=['datetime'],
                           index_col=['datetime'])
     # split into train and test
-    train_, test_ = split_dataset(dataset.values)
+    train, test = split_dataset(dataset.values)
     # evaluate model and get scores
-    n_input_ = 7
-    score_, scores_ = evaluate_model(train_, test_, n_input_)
+    n_input = 7
+    score, scores = evaluate_model(train, test, n_input)
     # summarize scores
-    summarize_scores('cnn', score_, scores_)
+    summarize_scores('cnn', score, scores)
     # plot scores
     days = ['sun', 'mon', 'tue', 'wed', 'thr', 'fri', 'sat']
 
-    plt.plot(days, scores_, marker='o', label='cnn')
+    plt.plot(days, scores, marker='o', label='cnn')
     plt.show()
+
+
+if __name__ == '__main__':
+    main()
 
     """
     Running the example fits and evaluates the model, printing the overall RMSE across all
