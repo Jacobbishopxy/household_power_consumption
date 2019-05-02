@@ -55,7 +55,7 @@ import matplotlib.pyplot as plt
 def to_supervised(train, n_input, n_out=7):
     # flatten data
     data = train.reshape((train.shape[0] * train.shape[1], train.shape[2]))
-    X, y = list(), list()
+    X, y = [], []
     in_start = 0
     # step over the entire history one time step at a time
     for _ in range(len(data)):
