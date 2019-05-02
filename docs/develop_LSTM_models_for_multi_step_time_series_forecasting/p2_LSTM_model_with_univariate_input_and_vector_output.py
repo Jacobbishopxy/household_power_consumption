@@ -216,8 +216,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-    """
-    Running the example fits and evaluates the model, printing the overall RMSE across all seven days, and the 
-    per-day RMSE for each lead time.
-    """
