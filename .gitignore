@@ -112,11 +112,10 @@ logs
 .vscode/settings.json
 
 
-
+/test
 /data/*
 !/data/README.md
 !/data/household_power_consumption.rar
-/test
-
+!/data/monthly-sunspots.csv
 
 

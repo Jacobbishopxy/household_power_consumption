@@ -93,7 +93,7 @@ skillful models as compared to a naive forecast. The chosen structures and hyper
 little trial and error. The scores should be taken as just an example rather than a study of the optimal model
 or configuration for the problem.
 
-We cannot konw which approach will be the most effective for a given multi-step forecasting problem. It is a
+We cannot know which approach will be the most effective for a given multi-step forecasting problem. It is a
 good idea to explore a suite of methods in order to discover what works best on your specific dataset.
 
 
