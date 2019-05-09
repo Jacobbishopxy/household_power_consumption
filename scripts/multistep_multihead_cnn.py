@@ -106,14 +106,12 @@ def build_model(train, n_inputs):
 
 """
 When the model is built, a diagram of the structure of the model is created and saved to file.
-
 Note: the call to plot_model() requires that pygraphviz and pydot are installed
-"""
 
-"""
+*************
 Next, we can update the preparation of input samples when making a prediction for the test dataset.
 
-We must perform the same change, where an unput array of [1, 14, 8] must be transformed into a list
+We must perform the same change, where an input array of [1, 14, 8] must be transformed into a list
 of eight 3D arrays each with [1, 14, 1].
 """
 
@@ -134,16 +132,16 @@ def forecast(model, history, n_input):
 
 
 # evaluate a single model
-def evaluate_model(train, test, n_inputs):
+def evaluate_model(train, test, n_input):
     # fit model
-    model = build_model(train, n_inputs)
+    model = build_model(train, n_input)
     # history is a list of weekly data
     history = [x for x in train]
     # walk-forward validation over each week
     predictions = []
     for i in range(len(test)):
         # predict the week
-        yhat_sequence = forecast(model, history, n_inputs)
+        yhat_sequence = forecast(model, history, n_input)
         # store the predictions
         predictions.append(yhat_sequence)
         # get real observation and add to history for predicting the next week
