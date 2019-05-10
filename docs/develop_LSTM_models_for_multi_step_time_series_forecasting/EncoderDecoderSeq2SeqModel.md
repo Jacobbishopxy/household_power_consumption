@@ -9,7 +9,7 @@ the length of the input and output may differ.
 
 ## How the Sequence to Sequence Model works?
 
-![img](./img/encoder_decoder_seq2seq_model.png)
+![img](img/encoder_decoder_seq2seq_model.png)
 
 The model consists of 3 parts: encoder, intermediate (encoder) vector and decoder.
 
@@ -24,7 +24,7 @@ question. Each word is represented as x_i where i is the order of that word.
 
 * The hidden states h_i are computed using the formula:
     
-    ![img](./img/hidden_states_formula.png)
+    ![img](img/hidden_states_formula.png)
 
 This simple formula represents the result of an ordinary recurrent neural network. As you can
 see, we just apply the appropriate weights to the previous hidden state h_(t-1) and the input
@@ -52,11 +52,11 @@ Each word is represented as y_i where i is the order of that word.
 
 * Any hidden state h_i is computed using the formula:
 
-    ![img](./img/hidden_state_h_i.png)
+    ![img](img/hidden_state_h_i.png)
 
 * The output y_t at time step t is computed using the formula:
 
-    ![img](./img/output_y_t.png)
+    ![img](img/output_y_t.png)
 
 We calculate the outputs using the hidden state at the current time step together with the 
 respective weight W(S). Softmax is used to create a probability vector which will help us
