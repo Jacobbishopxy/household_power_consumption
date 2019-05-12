@@ -362,7 +362,7 @@ with tf.Session() as sess:
 
 ### Map
 
-You can apply a custom fuction to each member of a dataset using the `map` method. In the following example we multiply 
+You can apply a custom function to each member of a dataset using the `map` method. In the following example we multiply 
 each element by two:
 
 ```
