@@ -116,17 +116,17 @@ that selects which tower crane to use to select which container to take.
 Using the first example
 
 ```
-x = np,random.sample((100,2))
+x = np.random.sample((100,2))
 
-dataset = tf.data.Dataset.from_tensor_slice(x)
+dataset = tf.data.Dataset.from_tensor_slices(x)
 
-iter = dataset.make_one_shot_iterator()
+itr = dataset.make_one_shot_iterator()
 ```
 
 Then you need to call `get_next()` to get the tensor that will contain your data
 
 ```
-el = iter.get_next()
+el = itr.get_next()
 ```
 
 We can run `el` in order to see its value

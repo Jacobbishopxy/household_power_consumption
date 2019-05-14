@@ -118,4 +118,5 @@ logs
 !/data/household_power_consumption.rar
 !/data/monthly-sunspots.csv
 
+tmp/
 

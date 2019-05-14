@@ -13,7 +13,7 @@ Also, please consult the excellent research paper: "Tensorflow Estimators: Manag
 Level Machine Learning FrameWorks" for further learning. 
 
 Esitmators deal with all the details of creating computational graphs, initializing variables, training the model and 
-saving chechpoint and logging files for Tensorboard behind the scene. But to work with the estimators, we've to become 
+saving checkpoint and logging files for Tensorboard behind the scene. But to work with the estimators, we've to become 
 comfortable with two new concepts, **feature columns and input functions**. Input functions are used for passing input 
 data to the model for training and evaluation. Feature columns are specifications for how the model should interpret 
 the input data. 
@@ -97,7 +97,7 @@ categorical_columns = [
 
 ### Numeric Feature Columns
 
-Numeric features can be represented by `numeric_column` which is used for real valued features. When we crate a 
+Numeric features can be represented by `numeric_column` which is used for real valued features. When we create a 
 `numeric_column` we have to pass a unique string to its `key` parameter. The value of `key` will be used as the name of
 the column. We can also specify the data type or shape of the `numeric_column` if necessary.
 
@@ -202,8 +202,8 @@ training_input_fn = tf.estimator.inputs.pandas_input_fn(x=x_train,
                                                         num_epochs=None)
 
 # create testing input function
-testing_input_fn = tf.estimator.inputs.pandas_input_fn(x=x_train,
-                                                       y=y_train,
+testing_input_fn = tf.estimator.inputs.pandas_input_fn(x=x_test,
+                                                       y=y_test,
                                                        batch_size=32,
                                                        shuffle=False,
                                                        num_epochs=1)
