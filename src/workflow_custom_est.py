@@ -3,7 +3,7 @@
 @time 2019/05/16
 """
 
-from typing import Union, List
+from typing import Union, List, Tuple, Optional
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -14,7 +14,14 @@ def _float_feature(arr: np.ndarray):
     return tf.train.Feature(float_list=tf.train.FloatList(value=arr))
 
 
-def write_tf_record(filename, features, labels):
+def write_tf_record(filename: str, features: np.ndarray, labels: np.ndarray):
+    """
+    write features and labels to TFRecord
+    :param filename:
+    :param features:
+    :param labels:
+    :return:
+    """
     writer = tf.python_io.TFRecordWriter(filename)
     for i in range(len(features)):
         feat = tf.train.Features(feature={
@@ -26,7 +33,13 @@ def write_tf_record(filename, features, labels):
     writer.close()
 
 
-def model_to_estimator(keras_model, model_dir=None):
+def model_to_estimator(keras_model, model_dir: Optional[str] = None):
+    """
+    convert keras model to estimator
+    :param keras_model:
+    :param model_dir:
+    :return:
+    """
     return tf.keras.estimator.model_to_estimator(keras_model=keras_model, model_dir=model_dir)
 
 
@@ -44,6 +57,15 @@ def to_supervised(data: pd.DataFrame,
                   n_out: int,
                   chn_cols: Union[List[int], int] = 0,
                   training: bool = True):
+    """
+
+    :param data:
+    :param n_in:
+    :param n_out:
+    :param chn_cols:
+    :param training:
+    :return:
+    """
     cc = [chn_cols] if isinstance(chn_cols, int) else chn_cols
     raw_features_df = data.iloc[:-n_out, cc]
     raw_labels_df = data.iloc[n_in:, 0]
@@ -59,11 +81,11 @@ def to_supervised(data: pd.DataFrame,
     return features, labels
 
 
-def _parse(feature, label):
+def _parse(feature: np.ndarray, label: np.ndarray):
     return {'X': feature}, label
 
 
-def set_input_fn_csv(features, labels, num_epochs=None):
+def set_input_fn_csv(features: np.ndarray, labels: np.ndarray, num_epochs=None):
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
 
     dataset = dataset.map(lambda f, l: _parse(f, l))
@@ -76,7 +98,7 @@ def set_input_fn_csv(features, labels, num_epochs=None):
     return batch_features, batch_labels
 
 
-def build_model(shape_in, shape_out):
+def build_model(shape_in: Tuple[int, int], shape_out: Tuple[int]):
     n_out = shape_out[0]
 
     input_layer = tf.keras.layers.Input(shape=shape_in, name='X')
@@ -96,7 +118,7 @@ def build_model(shape_in, shape_out):
     return model
 
 
-def read_data_from_csv(path):
+def read_data_from_csv(path: str):
     return pd.read_csv(path,
                        header=0,
                        infer_datetime_format=True,
@@ -104,10 +126,10 @@ def read_data_from_csv(path):
                        index_col=['datetime'])
 
 
-def data_to_tf_record(train_features,
-                      train_labels,
-                      test_features,
-                      test_labels,
+def data_to_tf_record(train_features: np.ndarray,
+                      train_labels: np.ndarray,
+                      test_features: np.ndarray,
+                      test_labels: np.ndarray,
                       train_path: str,
                       test_path: str):
     """
@@ -129,11 +151,11 @@ def data_to_tf_record(train_features,
     print('test to TFRecord completed')
 
 
-def tf_record_preprocessing(n_in,
-                            n_out,
-                            raw_data_path,
-                            file_train_path,
-                            file_test_path):
+def tf_record_preprocessing(n_in: int,
+                            n_out: int,
+                            raw_data_path: str,
+                            file_train_path: str,
+                            file_test_path: str):
     """
 
     :param n_in:
@@ -159,7 +181,9 @@ def tf_record_preprocessing(n_in,
                       file_test_path)
 
 
-def _data_from_tf_record(example, shape_in, shape_out):
+def _data_from_tf_record(example,
+                         shape_in: Tuple[int, int],
+                         shape_out: Tuple[int]):
     n_in, num_fea = shape_in
     n_dim_in = n_in * num_fea
     feature_def = {'features': tf.FixedLenFeature(n_dim_in, tf.float32),
@@ -171,7 +195,18 @@ def _data_from_tf_record(example, shape_in, shape_out):
     return fea, lbl
 
 
-def set_input_fn_tf_record(file_name, shape_in, shape_out, num_epochs=None):
+def set_input_fn_tf_record(file_name: str,
+                           shape_in: Tuple[int, int],
+                           shape_out: Tuple[int],
+                           num_epochs: Optional[int] = None):
+    """
+
+    :param file_name:
+    :param shape_in:
+    :param shape_out:
+    :param num_epochs:
+    :return:
+    """
     dataset = tf.data.TFRecordDataset(file_name)
     dataset = dataset.map(lambda x: _data_from_tf_record(x, shape_in, shape_out))
     dataset = dataset.map(_parse)
@@ -181,7 +216,10 @@ def set_input_fn_tf_record(file_name, shape_in, shape_out, num_epochs=None):
     return dataset
 
 
-def eval_from_csv(shape_in, shape_out, file_csv, num_epochs=10):
+def eval_from_csv(shape_in: Tuple[int, int],
+                  shape_out: Tuple[int],
+                  file_csv: str,
+                  num_epochs: Optional[int] = 10):
     """
     train & test read from csv
     :param shape_in:
@@ -212,7 +250,11 @@ def eval_from_csv(shape_in, shape_out, file_csv, num_epochs=10):
     return result
 
 
-def eval_from_tf_record(shape_in, shape_out, file_train, file_test, num_epochs=10):
+def eval_from_tf_record(shape_in: Tuple[int, int],
+                        shape_out: Tuple[int],
+                        file_train: str,
+                        file_test: str,
+                        num_epochs: Optional[int] = 10):
     """
     train & test read from TFRecord
     :param shape_in:
@@ -240,6 +282,7 @@ def eval_from_tf_record(shape_in, shape_out, file_train, file_test, num_epochs=1
     return result
 
 
+# todo: explore this function
 def ev(shape_in, shape_out, file_train, file_test):
     model = build_model(shape_in=shape_in, shape_out=shape_out)
     classifier = model_to_estimator(model, 'tmp')
@@ -257,7 +300,6 @@ def ev(shape_in, shape_out, file_train, file_test):
 
 
 if __name__ == '__main__':
-
     '''
     in case of GPU CUDA crashing
     '''
