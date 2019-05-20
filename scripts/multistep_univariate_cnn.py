@@ -9,6 +9,7 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 import keras
+import tensorflow as tf
 
 
 def split_dataset(data):
@@ -107,7 +108,34 @@ def build_model(train, n_input):
     model.add(keras.layers.Dense(10, activation='relu'))
     model.add(keras.layers.Dense(n_outputs))
     model.compile(loss='mse', optimizer='adam')
+
+    model.summary()
     # fit network
+    model.fit(train_x, train_y, epochs=epochs, batch_size=batch_size, verbose=verbose)
+    return model
+
+
+def build_dev_model(train, n_input):
+
+    train_x, train_y = to_supervised(train, n_input)
+    verbose, epochs, batch_size = 0, 20, 4
+    n_timesteps, n_features, n_outputs = train_x.shape[1], train_x.shape[2], train_y.shape[1]
+
+    input_layer = tf.keras.layers.Input(shape=(n_timesteps, n_features))
+    conv = tf.keras.layers.Conv1D(filters=16,
+                                  kernel_size=3,
+                                  activation='relu')(input_layer)
+    maxp = tf.keras.layers.MaxPooling1D(pool_size=2)(conv)
+    fltn = tf.keras.layers.Flatten()(maxp)
+    dns1 = tf.keras.layers.Dense(10, activation='relu')(fltn)
+    dns2 = tf.keras.layers.Dense(n_outputs)(dns1)
+
+    model = tf.keras.Model(inputs=input_layer, outputs=dns2)
+    model.compile(loss=tf.keras.losses.mean_squared_error,
+                  optimizer=tf.train.AdamOptimizer(),
+                  metrics=['accuracy'])
+
+    model.summary()
     model.fit(train_x, train_y, epochs=epochs, batch_size=batch_size, verbose=verbose)
     return model
 
@@ -143,6 +171,7 @@ def evaluate_model(train, test, n_input):
     """
     # fit model
     model = build_model(train, n_input)
+    # model = build_dev_model(train, n_input)
     # history is a list of weekly data
     history = [x for x in train]
     # walk-forward validation over each week
@@ -213,5 +242,5 @@ if __name__ == '__main__':
     
     This may suggest a benefit in using the two different sized inputs in some way, such as
     an ensemble of the two approaches or perhaps a single model (e.g. a multi-headed model)
-    that reads the training data in defferent ways.
+    that reads the training data in different ways.
     """

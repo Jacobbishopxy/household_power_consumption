@@ -7,6 +7,7 @@ from typing import Optional, List, Callable, Union, Dict
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow_estimator import estimator
 
 
 def model_to_estimator(keras_model, model_dir=None):
@@ -14,26 +15,28 @@ def model_to_estimator(keras_model, model_dir=None):
 
 
 def set_np_input_fn(x: Dict, y: np.ndarray, num_epochs: int):
-    return tf.estimator.inputs.numpy_input_fn(x=x,
-                                              y=y,
-                                              shuffle=False,
-                                              num_epochs=num_epochs)
+    return estimator.inputs.numpy_input_fn(x=x,
+                                           y=y,
+                                           shuffle=False,
+                                           num_epochs=num_epochs)
 
 
 def build_model(shape_in, shape_out):
-    model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Conv1D(filters=16,
-                                     kernel_size=3,
-                                     activation='relu',
-                                     input_shape=shape_in,
-                                     name='feature'))
-    model.add(tf.keras.layers.MaxPooling1D(pool_size=2))
-    model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dense(10, activation='relu'))
-    model.add(tf.keras.layers.Dense(shape_out, name='label'))
-    model.compile(loss=tf.keras.losses.mean_squared_error,
-                  optimizer=tf.train.AdamOptimizer())
+    input_layer = tf.keras.layers.Input(shape=shape_in, name='feature')
 
+    conv = tf.keras.layers.Conv1D(filters=16,
+                                  kernel_size=3,
+                                  activation='relu')(input_layer)
+    maxp = tf.keras.layers.MaxPooling1D(pool_size=2)(conv)
+    fltn = tf.keras.layers.Flatten()(maxp)
+    dns1 = tf.keras.layers.Dense(10, activation='relu')(fltn)
+    dns2 = tf.keras.layers.Dense(shape_out)(dns1)
+
+    model = tf.keras.Model(inputs=input_layer, outputs=dns2)
+
+    model.compile(loss=tf.keras.losses.mean_squared_error,
+                  optimizer=tf.train.AdamOptimizer(),
+                  metrics=['accuracy'])
     return model
 
 
@@ -76,21 +79,32 @@ if __name__ == '__main__':
 
     mdl = build_model(shape_in=(n_timesteps, n_features), shape_out=n_outputs)
 
-    est = model_to_estimator(mdl, 'tmp/est')
+    est = model_to_estimator(mdl, 'tmp')
 
     trn_fea, trn_lbl = to_supervised(trn, n_timesteps, n_outputs)
 
-    training_input_fn = set_np_input_fn(x={'feature_input': trn_fea},
+    training_input_fn = set_np_input_fn(x={'feature': trn_fea},
                                         y=trn_lbl,
                                         num_epochs=20)
+
+
+    def test_input():
+        with tf.Session() as s:
+            bar = s.run(training_input_fn())
+            print(bar)
+
+
     est.train(input_fn=training_input_fn)
 
     tst_fea, tst_lbl = to_forecasted(tst, n_timesteps, n_outputs)
 
-    testing_input_fn = set_np_input_fn(x={'feature_input': tst_fea},
+    testing_input_fn = set_np_input_fn(x={'feature': tst_fea},
                                        y=tst_lbl,
                                        num_epochs=1)
 
     result = est.evaluate(input_fn=testing_input_fn)
 
     print(result)
+    '''
+    tensorboard --logdir=src/tmp/est
+    '''
