@@ -55,22 +55,22 @@ def _sliding_window(arr: np.ndarray, window: int, step: int = 1):
 def to_supervised(data: pd.DataFrame,
                   n_in: int,
                   n_out: int,
-                  chn_cols: Union[List[int], int] = 0,
-                  training: bool = True):
+                  feature_cols: Union[List[int], int] = 0,
+                  is_train: bool = True):
     """
 
     :param data:
     :param n_in:
     :param n_out:
-    :param chn_cols:
-    :param training:
+    :param feature_cols:
+    :param is_train:
     :return:
     """
-    cc = [chn_cols] if isinstance(chn_cols, int) else chn_cols
+    cc = [feature_cols] if isinstance(feature_cols, int) else feature_cols
     raw_features_df = data.iloc[:-n_out, cc]
     raw_labels_df = data.iloc[n_in:, 0]
 
-    if training:
+    if is_train:
         n_in_steps = n_out_steps = 1
     else:
         n_in_steps, n_out_steps = n_in, n_out
@@ -155,7 +155,8 @@ def tf_record_preprocessing(n_in: int,
                             n_out: int,
                             raw_data_path: str,
                             file_train_path: str,
-                            file_test_path: str):
+                            file_test_path: str,
+                            feature_cols: Union[List[int], int] = 0):
     """
 
     :param n_in:
@@ -163,6 +164,7 @@ def tf_record_preprocessing(n_in: int,
     :param raw_data_path:
     :param file_train_path:
     :param file_test_path:
+    :param feature_cols:
     :return:
     """
     # read from csv
@@ -170,8 +172,8 @@ def tf_record_preprocessing(n_in: int,
     # split train & test
     raw_trn_data, raw_tst_data = split_data(d)
     # split train/test-x/y
-    trn_fea, trn_lbl = to_supervised(raw_trn_data, n_in, n_out, training=True)
-    tst_fea, tst_lbl = to_supervised(raw_tst_data, n_in, n_out, training=False)
+    trn_fea, trn_lbl = to_supervised(raw_trn_data, n_in, n_out, feature_cols=feature_cols, is_train=True)
+    tst_fea, tst_lbl = to_supervised(raw_tst_data, n_in, n_out, feature_cols=feature_cols, is_train=False)
     # write final train & test data to TFRecord
     data_to_tf_record(trn_fea,
                       trn_lbl,
@@ -219,12 +221,14 @@ def set_input_fn_tf_record(file_name: str,
 def eval_from_csv(shape_in: Tuple[int, int],
                   shape_out: Tuple[int],
                   file_csv: str,
+                  feature_cols: Union[List[int], int] = 0,
                   num_epochs: Optional[int] = 10):
     """
     train & test read from csv
     :param shape_in:
     :param shape_out:
     :param file_csv:
+    :param feature_cols:
     :param num_epochs:
     :return:
     """
@@ -236,8 +240,8 @@ def eval_from_csv(shape_in: Tuple[int, int],
 
     d = read_data_from_csv(file_csv)
     raw_trn_data, raw_tst_data = split_data(d)
-    trn_fea, trn_lbl = to_supervised(raw_trn_data, n_in, n_out, training=True)
-    tst_fea, tst_lbl = to_supervised(raw_tst_data, n_in, n_out, training=False)
+    trn_fea, trn_lbl = to_supervised(raw_trn_data, n_in, n_out, feature_cols=feature_cols, is_train=True)
+    tst_fea, tst_lbl = to_supervised(raw_tst_data, n_in, n_out, feature_cols=feature_cols, is_train=False)
 
     classifier.train(
         input_fn=lambda: set_input_fn_csv(trn_fea, trn_lbl),
@@ -313,29 +317,29 @@ if __name__ == '__main__':
 
     '''
     N_IN: timesteps 
-    NUM_CHN: channels 
     N_OUT: labels
+    FEATURE_COLS: features to use for training
     '''
 
     RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
     FILE_TRAIN = '../data/uni_var_train.tfrecords'
     FILE_TEST = '../data/uni_var_test.tfrecords'
 
-    N_IN, NUM_CHN, N_OUT = 7, 1, 7
+    N_IN, N_OUT, FEATURE_COLS = 7, 7, [0]
 
-    SHAPE_IN = (N_IN, NUM_CHN)
+    SHAPE_IN = (N_IN, len(FEATURE_COLS))
     SHAPE_OUT = (N_OUT,)
 
     '''
     read data from csv and evaluate model
     '''
-    r1 = eval_from_csv(SHAPE_IN, SHAPE_OUT, file_csv=RAW_DATA_PATH)
-    print(r1)
+    # r1 = eval_from_csv(SHAPE_IN, SHAPE_OUT, feature_cols=FEATURE_COLS, file_csv=RAW_DATA_PATH)
+    # print(r1)
 
     '''
     write data to TFRecord then read and evaluate 
     '''
-    # tf_record_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, FILE_TRAIN, FILE_TEST)
+    tf_record_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, FILE_TRAIN, FILE_TEST, feature_cols=FEATURE_COLS)
 
-    # r2 = eval_from_tf_record(SHAPE_IN, SHAPE_OUT, file_train=FILE_TRAIN, file_test=FILE_TEST)
-    # print(r2)
+    r2 = eval_from_tf_record(SHAPE_IN, SHAPE_OUT, file_train=FILE_TRAIN, file_test=FILE_TEST)
+    print(r2)
