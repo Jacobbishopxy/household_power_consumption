@@ -3,11 +3,14 @@
 @time 2019/05/16
 """
 
-from typing import Union, List, Tuple, Optional
+from typing import Union, List, Tuple, Optional, Dict, Any
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tensorflow_estimator import estimator as est
+
+from data_preprocessing import read_data_from_csv, split_data, to_supervised
+from utils import crash_proof, create_model_dir, launch_tb
 
 
 def _float_feature(arr: np.ndarray):
@@ -43,46 +46,8 @@ def model_to_estimator(keras_model, model_dir: Optional[str] = None):
     return tf.keras.estimator.model_to_estimator(keras_model=keras_model, model_dir=model_dir)
 
 
-def split_data(data: pd.DataFrame):
-    return data.iloc[1:-328, :], data.iloc[-328:-6, :]
-
-
-def _sliding_window(arr: np.ndarray, window: int, step: int = 1):
-    loop = (arr.shape[0] - window) // step + 1
-    return np.array([arr[i * step:i * step + window] for i in range(loop)])
-
-
-def to_supervised(data: pd.DataFrame,
-                  n_in: int,
-                  n_out: int,
-                  feature_cols: Union[List[int], int] = 0,
-                  is_train: bool = True):
-    """
-
-    :param data:
-    :param n_in:
-    :param n_out:
-    :param feature_cols:
-    :param is_train:
-    :return:
-    """
-    cc = [feature_cols] if isinstance(feature_cols, int) else feature_cols
-    raw_features_df = data.iloc[:-n_out, cc]
-    raw_labels_df = data.iloc[n_in:, 0]
-
-    if is_train:
-        n_in_steps = n_out_steps = 1
-    else:
-        n_in_steps, n_out_steps = n_in, n_out
-
-    features = _sliding_window(raw_features_df.values, window=n_in, step=n_in_steps)
-    labels = _sliding_window(raw_labels_df.values, window=n_out, step=n_out_steps)
-
-    return features, labels
-
-
 def _parse(feature: np.ndarray, label: np.ndarray):
-    return {'X': feature}, label
+    return {'inputs': feature}, label
 
 
 def set_input_fn_csv(features: np.ndarray, labels: np.ndarray, num_epochs=None):
@@ -101,7 +66,7 @@ def set_input_fn_csv(features: np.ndarray, labels: np.ndarray, num_epochs=None):
 def build_model(shape_in: Tuple[int, int], shape_out: Tuple[int]):
     n_out = shape_out[0]
 
-    input_layer = tf.keras.layers.Input(shape=shape_in, name='X')
+    input_layer = tf.keras.layers.Input(shape=shape_in, name='inputs')
     conv = tf.keras.layers.Conv1D(filters=16,
                                   kernel_size=3,
                                   activation='relu')(input_layer)
@@ -118,12 +83,91 @@ def build_model(shape_in: Tuple[int, int], shape_out: Tuple[int]):
     return model
 
 
-def read_data_from_csv(path: str):
-    return pd.read_csv(path,
-                       header=0,
-                       infer_datetime_format=True,
-                       parse_dates=['datetime'],
-                       index_col=['datetime'])
+def create_model(shape_in: Tuple[int, int], shape_out: Tuple[int]):
+    n_out = shape_out[0]
+
+    input_layer = tf.keras.layers.Input(shape=shape_in, name='inputs')
+    conv = tf.keras.layers.Conv1D(filters=16,
+                                  kernel_size=3,
+                                  activation='relu')(input_layer)
+    maxp = tf.keras.layers.MaxPooling1D(pool_size=2)(conv)
+    fltn = tf.keras.layers.Flatten()(maxp)
+    dns1 = tf.keras.layers.Dense(10, activation='relu')(fltn)
+    dns2 = tf.keras.layers.Dense(n_out)(dns1)
+
+    model = tf.keras.Model(inputs=input_layer, outputs=dns2)
+    return model
+
+
+def set_model_fn(features: Dict[str, tf.Tensor],
+                 labels: tf.Tensor,
+                 mode: est.ModeKeys,
+                 params: Dict[str, Any]):
+    """
+
+    :param features:
+    :param labels:
+    :param mode:
+    :param params:
+    :return:
+    """
+    # todo: don't want concrete create_model in here
+    # model = params.get('model')
+    shape_in, shape_out = params.get('shape_in'), params.get('shape_out')
+    model = create_model(shape_in, shape_out)
+
+    learning_rate = params.get('learning_rate', 1e-4)
+
+    fea = features['inputs']
+
+    if mode == est.ModeKeys.PREDICT:
+        result = model(fea, training=False)
+
+        predictions = {
+            'prices': tf.squeeze(result, axis=1),
+        }
+        return est.EstimatorSpec(
+            mode=mode,
+            predictions=predictions,
+            export_outputs={
+                'prices': est.export.PredictOutput(predictions)
+            }
+        )
+
+    # todo: enhance interaction with TensorBoard
+    if mode == est.ModeKeys.TRAIN:
+        result = model(fea, training=True)
+
+        optimizer = tf.train.AdamOptimizer()
+        loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
+        train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_or_create_global_step())
+
+        tf.identity(learning_rate, 'learning_rate')
+        tf.identity(loss, 'loss')
+        tf.summary.scalar('train_loss', loss)
+
+        return est.EstimatorSpec(
+            mode=mode,
+            loss=loss,
+            train_op=train_op
+        )
+
+    if mode == est.ModeKeys.EVAL:
+        result = model(fea, training=False)
+
+        loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
+        rmse = tf.metrics.root_mean_squared_error(labels=labels, predictions=result)
+        # todo: check each shape_out's rmse
+
+        eval_metric_ops = {
+            'rmse': rmse
+        }
+
+        return est.EstimatorSpec(
+            mode=mode,
+            loss=loss,
+            eval_metric_ops=eval_metric_ops
+        )
 
 
 def data_to_tf_record(train_features: np.ndarray,
@@ -222,7 +266,8 @@ def eval_from_csv(shape_in: Tuple[int, int],
                   shape_out: Tuple[int],
                   file_csv: str,
                   feature_cols: Union[List[int], int] = 0,
-                  num_epochs: Optional[int] = 10):
+                  num_epochs: Optional[int] = 10,
+                  activate_tb: bool = False):
     """
     train & test read from csv
     :param shape_in:
@@ -230,13 +275,15 @@ def eval_from_csv(shape_in: Tuple[int, int],
     :param file_csv:
     :param feature_cols:
     :param num_epochs:
+    :param activate_tb:
     :return:
     """
 
     n_in, n_out = shape_in[0], shape_out[0]
 
     model = build_model(shape_in=shape_in, shape_out=shape_out)
-    classifier = model_to_estimator(model, 'tmp')
+    model_dir = create_model_dir(r'..\tmp')
+    classifier = model_to_estimator(model, model_dir=model_dir)
 
     d = read_data_from_csv(file_csv)
     raw_trn_data, raw_tst_data = split_data(d)
@@ -251,6 +298,8 @@ def eval_from_csv(shape_in: Tuple[int, int],
     result = classifier.evaluate(
         input_fn=lambda: set_input_fn_csv(tst_fea, tst_lbl, num_epochs=num_epochs)
     )
+    if activate_tb:
+        launch_tb(model_dir)
     return result
 
 
@@ -258,7 +307,8 @@ def eval_from_tf_record(shape_in: Tuple[int, int],
                         shape_out: Tuple[int],
                         file_train: str,
                         file_test: str,
-                        num_epochs: Optional[int] = 10):
+                        num_epochs: Optional[int] = 10,
+                        activate_tb: bool = False):
     """
     train & test read from TFRecord
     :param shape_in:
@@ -266,10 +316,12 @@ def eval_from_tf_record(shape_in: Tuple[int, int],
     :param file_train:
     :param file_test:
     :param num_epochs:
+    :param activate_tb:
     :return:
     """
     model = build_model(shape_in=shape_in, shape_out=shape_out)
-    classifier = model_to_estimator(model, 'tmp')
+    model_dir = create_model_dir(r'..\tmp')
+    classifier = model_to_estimator(model, model_dir=model_dir)
 
     classifier.train(
         input_fn=lambda: set_input_fn_tf_record(file_train,
@@ -283,13 +335,24 @@ def eval_from_tf_record(shape_in: Tuple[int, int],
                                                 shape_out=shape_out,
                                                 num_epochs=num_epochs)
     )
+    if activate_tb:
+        launch_tb(model_dir)
     return result
 
 
-# todo: explore this function
-def ev(shape_in, shape_out, file_train, file_test):
-    model = build_model(shape_in=shape_in, shape_out=shape_out)
-    classifier = model_to_estimator(model, 'tmp')
+def ev(shape_in,
+       shape_out,
+       file_train,
+       file_test,
+       activate_tb: bool = False):
+    model = create_model(shape_in=shape_in, shape_out=shape_out)
+    model_dir = create_model_dir(r'..\tmp')
+    classifier = est.Estimator(
+        model_fn=set_model_fn,
+        params={
+            'model': model,
+        }
+    )
 
     train_spec = est.TrainSpec(
         input_fn=lambda: set_input_fn_tf_record(file_train, shape_in=shape_in, shape_out=shape_out),
@@ -300,30 +363,24 @@ def ev(shape_in, shape_out, file_train, file_test):
     )
 
     classifier = est.train_and_evaluate(classifier, train_spec, eval_spec)
+
+    if activate_tb:
+        launch_tb(model_dir)
     return classifier
 
 
 if __name__ == '__main__':
-    '''
-    in case of GPU CUDA crashing
-    '''
-    config = tf.ConfigProto(
-        gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
-        # device_count = {'GPU': 1}
-    )
-    config.gpu_options.allow_growth = True
-    session = tf.Session(config=config)
-    tf.keras.backend.set_session(session)
+    crash_proof()
 
     '''
     N_IN: timesteps 
     N_OUT: labels
-    FEATURE_COLS: features to use for training
+    FEATURE_COLS: features to use for train_x & test_x
     '''
 
     RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
-    FILE_TRAIN = '../data/uni_var_train.tfrecords'
-    FILE_TEST = '../data/uni_var_test.tfrecords'
+    FILE_TRAIN = '../tmp/uni_var_train.tfrecords'
+    FILE_TEST = '../tmp/uni_var_test.tfrecords'
 
     N_IN, N_OUT, FEATURE_COLS = 7, 7, [0]
 
@@ -339,7 +396,20 @@ if __name__ == '__main__':
     '''
     write data to TFRecord then read and evaluate 
     '''
-    tf_record_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, FILE_TRAIN, FILE_TEST, feature_cols=FEATURE_COLS)
+    # tf_record_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, FILE_TRAIN, FILE_TEST, feature_cols=FEATURE_COLS)
 
-    r2 = eval_from_tf_record(SHAPE_IN, SHAPE_OUT, file_train=FILE_TRAIN, file_test=FILE_TEST)
-    print(r2)
+    # r2 = eval_from_tf_record(SHAPE_IN, SHAPE_OUT, file_train=FILE_TRAIN, file_test=FILE_TEST, activate_tb=True)
+    # print(r2)
+
+    '''
+    use model fn to create an estimator    
+    '''
+
+    # todo:
+    clf = est.Estimator(model_fn=set_model_fn,
+                        params={
+                            'shape_in': SHAPE_IN,
+                            'shape_out': SHAPE_OUT
+                        })
+
+    clf.train(input_fn=lambda: set_input_fn_tf_record(FILE_TRAIN, shape_in=SHAPE_IN, shape_out=SHAPE_OUT))
