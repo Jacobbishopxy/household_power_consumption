@@ -6,6 +6,7 @@
 from typing import Union, List
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 
 
 def read_data_from_csv(path: str):
@@ -52,3 +53,96 @@ def to_supervised(data: pd.DataFrame,
     labels = _sliding_window(raw_labels_df.values, window=n_out, step=n_out_steps)
 
     return features, labels
+
+
+def _float_feature(arr: np.ndarray):
+    return tf.train.Feature(float_list=tf.train.FloatList(value=arr))
+
+
+def write_tf_record(filename: str, features: np.ndarray, labels: np.ndarray):
+    """
+    write features and labels to TFRecord
+    :param filename:
+    :param features:
+    :param labels:
+    :return:
+    """
+    writer = tf.python_io.TFRecordWriter(filename)
+    for i in range(len(features)):
+        feat = tf.train.Features(feature={
+            'features': _float_feature(features[i]),
+            'labels': _float_feature(labels[i])
+        })
+        example = tf.train.Example(features=feat)
+        writer.write(example.SerializeToString())
+    writer.close()
+
+
+def data_to_tf_record(train_features: np.ndarray,
+                      train_labels: np.ndarray,
+                      test_features: np.ndarray,
+                      test_labels: np.ndarray,
+                      train_path: str,
+                      test_path: str):
+    """
+    train & test write to TFRecord
+    :param train_features:
+    :param train_labels:
+    :param test_features:
+    :param test_labels:
+    :param train_path:
+    :param test_path:
+    :return:
+    """
+    train_features_vec = train_features.reshape([train_features.shape[0], -1])
+    test_features_vec = test_features.reshape([test_features.shape[0], -1])
+
+    write_tf_record(train_path, train_features_vec, train_labels)
+    print('train to TFRecord completed')
+    write_tf_record(test_path, test_features_vec, test_labels)
+    print('test to TFRecord completed')
+
+
+def tf_record_preprocessing(n_in: int,
+                            n_out: int,
+                            raw_data_path: str,
+                            file_train_path: str,
+                            file_test_path: str,
+                            feature_cols: Union[List[int], int] = 0):
+    """
+
+    :param n_in:
+    :param n_out:
+    :param raw_data_path:
+    :param file_train_path:
+    :param file_test_path:
+    :param feature_cols:
+    :return:
+    """
+    # read from csv
+    d = read_data_from_csv(raw_data_path)
+    # split train & test
+    raw_trn_data, raw_tst_data = split_data(d)
+    # split train/test-x/y
+    trn_fea, trn_lbl = to_supervised(raw_trn_data, n_in, n_out, feature_cols=feature_cols, is_train=True)
+    tst_fea, tst_lbl = to_supervised(raw_tst_data, n_in, n_out, feature_cols=feature_cols, is_train=False)
+    # write final train & test data to TFRecord
+    data_to_tf_record(trn_fea,
+                      trn_lbl,
+                      tst_fea,
+                      tst_lbl,
+                      file_train_path,
+                      file_test_path)
+
+
+if __name__ == '__main__':
+    RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
+    FILE_TRAIN = '../tmp/uni_var_train.tfrecords'
+    FILE_TEST = '../tmp/uni_var_test.tfrecords'
+
+    N_IN, N_OUT, FEATURE_COLS = 7, 7, [0]
+
+    '''
+    write data to TFRecord then read and evaluate 
+    '''
+    # tf_record_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, FILE_TRAIN, FILE_TEST, feature_cols=FEATURE_COLS)
