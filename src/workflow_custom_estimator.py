@@ -86,16 +86,17 @@ def build_model(shape_in: Tuple[int, int], shape_out: Tuple[int]):
 def create_model(shape_in: Tuple[int, int], shape_out: Tuple[int]):
     n_out = shape_out[0]
 
-    input_layer = tf.keras.layers.Input(shape=shape_in, name='inputs')
-    conv = tf.keras.layers.Conv1D(filters=16,
-                                  kernel_size=3,
-                                  activation='relu')(input_layer)
-    maxp = tf.keras.layers.MaxPooling1D(pool_size=2)(conv)
-    fltn = tf.keras.layers.Flatten()(maxp)
-    dns1 = tf.keras.layers.Dense(10, activation='relu')(fltn)
-    dns2 = tf.keras.layers.Dense(n_out)(dns1)
+    with tf.name_scope('keras_model'):
+        input_layer = tf.keras.layers.Input(shape=shape_in, name='inputs')
+        conv = tf.keras.layers.Conv1D(filters=16,
+                                      kernel_size=3,
+                                      activation='relu')(input_layer)
+        maxp = tf.keras.layers.MaxPooling1D(pool_size=2)(conv)
+        fltn = tf.keras.layers.Flatten()(maxp)
+        dns1 = tf.keras.layers.Dense(10, activation='relu')(fltn)
+        dns2 = tf.keras.layers.Dense(n_out)(dns1)
 
-    model = tf.keras.Model(inputs=input_layer, outputs=dns2)
+        model = tf.keras.Model(inputs=input_layer, outputs=dns2)
     return model
 
 
@@ -111,10 +112,10 @@ def set_model_fn(features: Dict[str, tf.Tensor],
     :param params:
     :return:
     """
-    # todo: don't want concrete create_model in here
-    # model = params.get('model')
-    shape_in, shape_out = params.get('shape_in'), params.get('shape_out')
-    model = create_model(shape_in, shape_out)
+    model_fn = params.get('model_fn')
+    model_params = params.get('model_params')
+    shape_in, shape_out = model_params.get('shape_in'), model_params.get('shape_out')
+    model = model_fn(shape_in, shape_out)
 
     learning_rate = params.get('learning_rate', 1e-4)
 
@@ -144,7 +145,8 @@ def set_model_fn(features: Dict[str, tf.Tensor],
 
         tf.identity(learning_rate, 'learning_rate')
         tf.identity(loss, 'loss')
-        tf.summary.scalar('train_loss', loss)
+        with tf.name_scope('train_metrics'):
+            tf.summary.scalar('train_loss', loss)
 
         return est.EstimatorSpec(
             mode=mode,
@@ -253,11 +255,12 @@ def set_input_fn_tf_record(file_name: str,
     :param num_epochs:
     :return:
     """
-    dataset = tf.data.TFRecordDataset(file_name)
-    dataset = dataset.map(lambda x: _data_from_tf_record(x, shape_in, shape_out))
-    dataset = dataset.map(_parse)
-    dataset = dataset.batch(4)
-    dataset = dataset.repeat(num_epochs)
+    with tf.name_scope("D"):
+        dataset = tf.data.TFRecordDataset(file_name)
+        dataset = dataset.map(lambda x: _data_from_tf_record(x, shape_in, shape_out))
+        dataset = dataset.map(_parse)
+        dataset = dataset.batch(4)
+        dataset = dataset.repeat(num_epochs)
 
     return dataset
 
@@ -340,29 +343,41 @@ def eval_from_tf_record(shape_in: Tuple[int, int],
     return result
 
 
-def ev(shape_in,
-       shape_out,
-       file_train,
-       file_test,
-       activate_tb: bool = False):
-    model = create_model(shape_in=shape_in, shape_out=shape_out)
-    model_dir = create_model_dir(r'..\tmp')
+def ev(shape_in: Tuple[int, int],
+       shape_out: Tuple[int],
+       file_train: str,
+       file_test: str,
+       epochs: int = 10,
+       steps: int = 20,
+       model_dir: str = r'..\tmp\test',
+       consistent_model: bool = True,
+       activate_tb: bool = True):
+    model_dir = create_model_dir(model_dir, consistent_model=consistent_model)
+
     classifier = est.Estimator(
         model_fn=set_model_fn,
+        model_dir=model_dir,
         params={
-            'model': model,
+            'model_fn': create_model,
+            'model_params': {
+                'shape_in': shape_in,
+                'shape_out': shape_out
+            }
         }
     )
 
-    train_spec = est.TrainSpec(
-        input_fn=lambda: set_input_fn_tf_record(file_train, shape_in=shape_in, shape_out=shape_out),
-    )
+    for _ in range(epochs):
+        classifier.train(input_fn=lambda: set_input_fn_tf_record(file_train,
+                                                                 shape_in=shape_in,
+                                                                 shape_out=shape_out),
+                         steps=steps)
 
-    eval_spec = est.EvalSpec(
-        input_fn=lambda: set_input_fn_tf_record(file_test, shape_in=shape_in, shape_out=shape_out)
-    )
+        result = classifier.evaluate(input_fn=lambda: set_input_fn_tf_record(file_test,
+                                                                             shape_in=shape_in,
+                                                                             shape_out=shape_out,
+                                                                             num_epochs=20))
 
-    classifier = est.train_and_evaluate(classifier, train_spec, eval_spec)
+        print(result)
 
     if activate_tb:
         launch_tb(model_dir)
@@ -405,11 +420,7 @@ if __name__ == '__main__':
     use model fn to create an estimator    
     '''
 
-    # todo:
-    clf = est.Estimator(model_fn=set_model_fn,
-                        params={
-                            'shape_in': SHAPE_IN,
-                            'shape_out': SHAPE_OUT
-                        })
-
-    clf.train(input_fn=lambda: set_input_fn_tf_record(FILE_TRAIN, shape_in=SHAPE_IN, shape_out=SHAPE_OUT))
+    ev(shape_in=SHAPE_IN,
+       shape_out=SHAPE_OUT,
+       file_train=FILE_TRAIN,
+       file_test=FILE_TEST)
