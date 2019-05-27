@@ -5,7 +5,6 @@
 
 from typing import Union, List, Tuple, Optional, Dict, Any
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from tensorflow_estimator import estimator as est
 
@@ -114,8 +113,7 @@ def set_model_fn(features: Dict[str, tf.Tensor],
     """
     model_fn = params.get('model_fn')
     model_params = params.get('model_params')
-    shape_in, shape_out = model_params.get('shape_in'), model_params.get('shape_out')
-    model = model_fn(shape_in, shape_out)
+    model = model_fn(**model_params)
 
     learning_rate = params.get('learning_rate', 1e-4)
 
