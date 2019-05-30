@@ -21,8 +21,9 @@ def estimator_from_csv(shape_in: Tuple[int, int],
                        shape_out: Tuple[int],
                        file_csv: str,
                        feature_cols: Union[List[int], int] = 0,
+                       batch_size: int = 10,
                        epochs: Optional[int] = 10,
-                       steps: int = 20,
+                       steps: int = 1,
                        model_dir: str = r'..\tmp\test',
                        consistent_model: bool = True,
                        activate_tb: bool = False):
@@ -32,6 +33,7 @@ def estimator_from_csv(shape_in: Tuple[int, int],
     :param shape_out:
     :param file_csv:
     :param feature_cols:
+    :param batch_size:
     :param epochs:
     :param steps:
     :param model_dir:
@@ -43,34 +45,40 @@ def estimator_from_csv(shape_in: Tuple[int, int],
 
     model = create_compiled_model(shape_in=shape_in, shape_out=shape_out)
     model_dir = create_model_dir(model_dir, consistent_model=consistent_model)
-    classifier = model_to_estimator(model, model_dir=model_dir)
+    estimator = model_to_estimator(model, model_dir=model_dir)
 
     d = read_data_from_csv(file_csv)
     raw_trn_data, raw_tst_data = split_data(d)
     trn_fea, trn_lbl = to_supervised(raw_trn_data, n_in, n_out, feature_cols=feature_cols, is_train=True)
     tst_fea, tst_lbl = to_supervised(raw_tst_data, n_in, n_out, feature_cols=feature_cols, is_train=False)
 
-    for _ in range(epochs):
-        classifier.train(
-            input_fn=lambda: set_input_fn_csv(trn_fea, trn_lbl),
-            steps=steps
+    for _ in range(steps):
+        estimator.train(
+            input_fn=lambda: set_input_fn_csv(trn_fea,
+                                              trn_lbl,
+                                              batch_size=batch_size,
+                                              num_epochs=epochs)
         )
-        result = classifier.evaluate(
-            input_fn=lambda: set_input_fn_csv(tst_fea, tst_lbl, num_epochs=20)
+        result = estimator.evaluate(
+            input_fn=lambda: set_input_fn_csv(tst_fea,
+                                              tst_lbl,
+                                              batch_size=batch_size,
+                                              num_epochs=1)
         )
         print(result)
 
     if activate_tb:
         launch_tb(model_dir)
-    return classifier
+    return estimator
 
 
 def estimator_from_tf_record(shape_in: Tuple[int, int],
                              shape_out: Tuple[int],
                              file_train: str,
                              file_test: str,
+                             batch_size: int = 10,
                              epochs: Optional[int] = 10,
-                             steps: int = 20,
+                             steps: int = 1,
                              model_dir: str = r'..\tmp\test',
                              consistent_model: bool = True,
                              activate_tb: bool = False):
@@ -80,6 +88,7 @@ def estimator_from_tf_record(shape_in: Tuple[int, int],
     :param shape_out:
     :param file_train:
     :param file_test:
+    :param batch_size:
     :param epochs:
     :param steps:
     :param model_dir:
@@ -89,26 +98,28 @@ def estimator_from_tf_record(shape_in: Tuple[int, int],
     """
     model = create_compiled_model(shape_in=shape_in, shape_out=shape_out)
     model_dir = create_model_dir(model_dir, consistent_model=consistent_model)
-    classifier = model_to_estimator(model, model_dir=model_dir)
+    estimator = model_to_estimator(model, model_dir=model_dir)
 
-    for _ in range(epochs):
-        classifier.train(
+    for _ in range(steps):
+        estimator.train(
             input_fn=lambda: set_input_fn_tf_record(file_train,
                                                     shape_in=shape_in,
-                                                    shape_out=shape_out),
-            steps=steps
+                                                    shape_out=shape_out,
+                                                    batch_size=batch_size,
+                                                    num_epochs=epochs)
         )
-        result = classifier.evaluate(
+        result = estimator.evaluate(
             input_fn=lambda: set_input_fn_tf_record(file_test,
                                                     shape_in=shape_in,
                                                     shape_out=shape_out,
-                                                    num_epochs=20)
+                                                    batch_size=batch_size,
+                                                    num_epochs=1)
         )
         print(result)
 
     if activate_tb:
         launch_tb(model_dir)
-    return classifier
+    return estimator
 
 
 def set_model_fn(features: Dict[str, tf.Tensor],
@@ -147,22 +158,23 @@ def set_model_fn(features: Dict[str, tf.Tensor],
 
     # todo: enhance interaction with TensorBoard
     if mode == est.ModeKeys.TRAIN:
-        result = model(fea, training=True)
+        with tf.name_scope('train'):
 
-        optimizer = tf.train.AdamOptimizer()
-        loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
-        train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_or_create_global_step())
+            result = model(fea, training=True)
 
-        tf.identity(learning_rate, 'learning_rate')
-        tf.identity(loss, 'loss')
-        with tf.name_scope('train_metrics'):
+            optimizer = tf.train.AdamOptimizer()
+            loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
+            train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_or_create_global_step())
+
+            tf.identity(learning_rate, 'learning_rate')
+            tf.identity(loss, 'loss')
             tf.summary.scalar('train_loss', loss)
 
-        return est.EstimatorSpec(
-            mode=mode,
-            loss=loss,
-            train_op=train_op
-        )
+            return est.EstimatorSpec(
+                mode=mode,
+                loss=loss,
+                train_op=train_op
+            )
 
     if mode == est.ModeKeys.EVAL:
         result = model(fea, training=False)
@@ -172,8 +184,9 @@ def set_model_fn(features: Dict[str, tf.Tensor],
         # todo: check each shape_out's rmse
 
         eval_metric_ops = {
-            'rmse': rmse
+            'train_loss/rmse': rmse
         }
+        tf.summary.scalar('rmse', rmse)
 
         return est.EstimatorSpec(
             mode=mode,
@@ -186,8 +199,9 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
                             shape_out: Tuple[int],
                             file_train: str,
                             file_test: str,
+                            batch_size: int = 10,
                             epochs: int = 10,
-                            steps: int = 20,
+                            steps: int = 1,
                             model_dir: str = r'..\tmp\test',
                             consistent_model: bool = True,
                             activate_tb: bool = True):
@@ -197,6 +211,7 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
     :param shape_out:
     :param file_train:
     :param file_test:
+    :param batch_size:
     :param epochs:
     :param steps:
     :param model_dir:
@@ -206,7 +221,7 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
     """
     model_dir = create_model_dir(model_dir, consistent_model=consistent_model)
 
-    classifier = est.Estimator(
+    estimator = est.Estimator(
         model_fn=set_model_fn,
         model_dir=model_dir,
         params={
@@ -218,26 +233,28 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
         }
     )
 
-    for _ in range(epochs):
-        classifier.train(
+    for _ in range(steps):
+        estimator.train(
             input_fn=lambda: set_input_fn_tf_record(file_train,
                                                     shape_in=shape_in,
-                                                    shape_out=shape_out),
-            steps=steps
+                                                    shape_out=shape_out,
+                                                    batch_size=batch_size,
+                                                    num_epochs=epochs)
         )
 
-        result = classifier.evaluate(
+        result = estimator.evaluate(
             input_fn=lambda: set_input_fn_tf_record(file_test,
                                                     shape_in=shape_in,
                                                     shape_out=shape_out,
-                                                    num_epochs=20)
+                                                    batch_size=batch_size,
+                                                    num_epochs=1)
         )
 
         print(result)
 
     if activate_tb:
         launch_tb(model_dir)
-    return classifier
+    return estimator
 
 
 if __name__ == '__main__':
@@ -261,17 +278,20 @@ if __name__ == '__main__':
     '''
     read data from csv
     '''
-    # c1 = estimator_from_csv(SHAPE_IN, SHAPE_OUT, feature_cols=FEATURE_COLS, file_csv=RAW_DATA_PATH)
+    # e1 = estimator_from_csv(SHAPE_IN, SHAPE_OUT, feature_cols=FEATURE_COLS, file_csv=RAW_DATA_PATH)
 
     '''
     read data from TFRecord
     '''
-    # c2 = estimator_from_tf_record(SHAPE_IN, SHAPE_OUT, file_train=FILE_TRAIN, file_test=FILE_TEST, activate_tb=True)
+    # e2 = estimator_from_tf_record(SHAPE_IN, SHAPE_OUT, file_train=FILE_TRAIN, file_test=FILE_TEST, activate_tb=True)
 
     '''
     use model fn to create an estimator    
     '''
-    c3 = estimator_from_model_fn(shape_in=SHAPE_IN,
+    e3 = estimator_from_model_fn(shape_in=SHAPE_IN,
                                  shape_out=SHAPE_OUT,
                                  file_train=FILE_TRAIN,
-                                 file_test=FILE_TEST)
+                                 file_test=FILE_TEST,
+                                 epochs=5,
+                                 steps=1,
+                                 consistent_model=False)
