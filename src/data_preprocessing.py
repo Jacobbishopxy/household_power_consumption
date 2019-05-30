@@ -2,7 +2,7 @@
 @author Jacob
 @time 2019/05/22
 """
-
+from builtins import str
 from typing import Union, List
 import numpy as np
 import pandas as pd

@@ -10,6 +10,7 @@ In real world, data is better to be separated into three parts: train, evaluate,
 from typing import Union, List, Tuple, Optional, Dict, Any
 import tensorflow as tf
 from tensorflow_estimator import estimator as est
+from tensorflow.python.ops import math_ops
 
 from models import create_compiled_model, model_to_estimator, create_vanilla_model
 from input_functions import set_input_fn_csv, set_input_fn_tf_record
@@ -126,6 +127,7 @@ def set_model_fn(features: Dict[str, tf.Tensor],
     model_fn = params.get('model_fn')
     model_params = params.get('model_params')
     model = model_fn(**model_params)
+    print(model.summary())
 
     learning_rate = params.get('learning_rate', 1e-4)
 
@@ -152,16 +154,20 @@ def set_model_fn(features: Dict[str, tf.Tensor],
         optimizer = tf.train.AdamOptimizer()
         loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
         train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_or_create_global_step())
-
+        train_mape = tf.reduce_mean(tf.abs(tf.divide(tf.subtract(result, labels), (labels + 1e-10))))
         tf.identity(learning_rate, 'learning_rate')
         tf.identity(loss, 'loss')
         with tf.name_scope('train_metrics'):
             tf.summary.scalar('train_loss', loss)
+            tf.summary.scalar('train_mape', train_mape)
+
+        logging_hook = tf.train.LoggingTensorHook({'train_mape': train_mape}, every_n_iter=10)
 
         return est.EstimatorSpec(
             mode=mode,
             loss=loss,
-            train_op=train_op
+            train_op=train_op,
+            training_hooks=[logging_hook]
         )
 
     if mode == est.ModeKeys.EVAL:
@@ -169,10 +175,13 @@ def set_model_fn(features: Dict[str, tf.Tensor],
 
         loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
         rmse = tf.metrics.root_mean_squared_error(labels=labels, predictions=result)
+        mape = tf.metrics.mean(math_ops.abs(math_ops.div_no_nan(math_ops.subtract(labels, result), labels + 1e-10)))
+
         # todo: check each shape_out's rmse
 
         eval_metric_ops = {
-            'rmse': rmse
+            'rmse': rmse,
+            'mape': mape
         }
 
         return est.EstimatorSpec(
@@ -218,11 +227,11 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
         }
     )
 
-    for _ in range(epochs):
+    for _ in range(1):
         classifier.train(
             input_fn=lambda: set_input_fn_tf_record(file_train,
                                                     shape_in=shape_in,
-                                                    shape_out=shape_out),
+                                                    shape_out=shape_out, num_epochs=epochs),
             steps=steps
         )
 
@@ -230,7 +239,7 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
             input_fn=lambda: set_input_fn_tf_record(file_test,
                                                     shape_in=shape_in,
                                                     shape_out=shape_out,
-                                                    num_epochs=20)
+                                                    num_epochs=1)
         )
 
         print(result)
@@ -253,8 +262,8 @@ if __name__ == '__main__':
     FILE_TRAIN = '../tmp/uni_var_train.tfrecords'
     FILE_TEST = '../tmp/uni_var_test.tfrecords'
 
-    N_IN, N_OUT, FEATURE_COLS = 7, 7, [0]
-
+    N_IN, N_OUT, FEATURE_COLS = 14, 7, [0]
+    epochs = 100
     SHAPE_IN = (N_IN, len(FEATURE_COLS))
     SHAPE_OUT = (N_OUT,)
 
@@ -271,7 +280,12 @@ if __name__ == '__main__':
     '''
     use model fn to create an estimator    
     '''
+    # from data_preprocessing import tf_record_preprocessing
+
+    # tf_record_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, FILE_TRAIN, FILE_TEST, feature_cols=FEATURE_COLS)
     c3 = estimator_from_model_fn(shape_in=SHAPE_IN,
                                  shape_out=SHAPE_OUT,
                                  file_train=FILE_TRAIN,
-                                 file_test=FILE_TEST)
+                                 file_test=FILE_TEST,
+                                 epochs=epochs, steps=275
+                                 )
