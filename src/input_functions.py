@@ -12,11 +12,22 @@ def _parse(feature: np.ndarray, label: np.ndarray):
     return {'inputs': feature}, label
 
 
-def set_input_fn_csv(features: np.ndarray, labels: np.ndarray, num_epochs=None):
+def set_input_fn_csv(features: np.ndarray,
+                     labels: np.ndarray,
+                     batch_size: int,
+                     num_epochs: int = 1):
+    """
+
+    :param features:
+    :param labels:
+    :param batch_size:
+    :param num_epochs:
+    :return:
+    """
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
 
     dataset = dataset.map(lambda f, l: _parse(f, l))
-    dataset = dataset.batch(4)
+    dataset = dataset.batch(batch_size)
     dataset = dataset.repeat(num_epochs)
 
     itr = dataset.make_one_shot_iterator()
@@ -28,12 +39,14 @@ def set_input_fn_csv(features: np.ndarray, labels: np.ndarray, num_epochs=None):
 def set_input_fn_tf_record(file_name: str,
                            shape_in: Tuple[int, int],
                            shape_out: Tuple[int],
-                           num_epochs: Optional[int] = None):
+                           batch_size: int,
+                           num_epochs: int = 1):
     """
 
     :param file_name:
     :param shape_in:
     :param shape_out:
+    :param batch_size:
     :param num_epochs:
     :return:
     """
@@ -53,7 +66,7 @@ def set_input_fn_tf_record(file_name: str,
         dataset = tf.data.TFRecordDataset(file_name)
         dataset = dataset.map(_data_from_tf_record)
         dataset = dataset.map(_parse)
-        dataset = dataset.batch(4)
+        dataset = dataset.batch(batch_size)
         dataset = dataset.repeat(num_epochs)
 
     return dataset

@@ -55,7 +55,7 @@ def to_supervised(data: pd.DataFrame,
     return features, labels
 
 
-def _float_feature(arr: np.ndarray):
+def _float_feature(arr: Union[np.ndarray, list]):
     return tf.train.Feature(float_list=tf.train.FloatList(value=arr))
 
 
