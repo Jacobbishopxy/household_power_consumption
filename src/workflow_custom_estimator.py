@@ -208,10 +208,10 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
                             consistent_model: bool = True,
                             activate_tb: bool = True,
                             n_checkpoint: int = 1,
+                            set_model_fn=set_model_fn,
+                            model_fn=create_vanilla_model,
                             ):
     """
-
-    :param n_checkpoint:
     :param shape_in:
     :param shape_out:
     :param file_train:
@@ -221,6 +221,9 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
     :param model_dir:
     :param consistent_model:
     :param activate_tb:
+    :param n_checkpoint:
+    :param set_model_fn:
+    :param model_fn:
     :return:
     """
     model_dir = create_model_dir(model_dir, consistent_model=consistent_model)
@@ -229,7 +232,7 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
         model_fn=set_model_fn,
         model_dir=model_dir,
         params={
-            'model_fn': create_vanilla_model,
+            'model_fn': model_fn,
             'model_params': {
                 'shape_in': shape_in,
                 'shape_out': shape_out
@@ -254,7 +257,7 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
                                                     num_epochs=1)
         )
 
-    print(result)
+        print(result)
 
     if activate_tb:
         launch_tb(model_dir)
@@ -297,5 +300,4 @@ if __name__ == '__main__':
                                  file_train=FILE_TRAIN,
                                  file_test=FILE_TEST,
                                  epochs=epochs,
-                                 steps=1,
                                  consistent_model=False)
