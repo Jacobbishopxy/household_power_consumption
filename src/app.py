@@ -23,4 +23,5 @@ e3 = estimator_from_model_fn(
     file_test=FILE_TEST,
     epochs=EPOCHS,
     consistent_model=False,
+    learning_rate=1e-3
 )

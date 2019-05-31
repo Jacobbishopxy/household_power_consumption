@@ -123,10 +123,10 @@ def estimator_from_tf_record(shape_in: Tuple[int, int],
     return estimator
 
 
-def set_model_fn(features: Dict[str, tf.Tensor],
-                 labels: tf.Tensor,
-                 mode: est.ModeKeys,
-                 params: Dict[str, Any]):
+def set_model_fn_default(features: Dict[str, tf.Tensor],
+                         labels: tf.Tensor,
+                         mode: est.ModeKeys,
+                         params: Dict[str, Any]):
     """
 
     :param features:
@@ -208,8 +208,9 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
                             consistent_model: bool = True,
                             activate_tb: bool = True,
                             n_checkpoint: int = 1,
-                            set_model_fn=set_model_fn,
+                            set_model_fn=set_model_fn_default,
                             model_fn=create_vanilla_model,
+                            learning_rate: float = None
                             ):
     """
     :param shape_in:
@@ -224,20 +225,26 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
     :param n_checkpoint:
     :param set_model_fn:
     :param model_fn:
+    :param learning_rate:
     :return:
     """
     model_dir = create_model_dir(model_dir, consistent_model=consistent_model)
 
+    params = {
+        'model_fn': model_fn,
+        'model_params': {
+            'shape_in': shape_in,
+            'shape_out': shape_out
+        }
+    }
+
+    if learning_rate is not None:
+        params['learning_rate'] = learning_rate
+
     estimator = est.Estimator(
         model_fn=set_model_fn,
         model_dir=model_dir,
-        params={
-            'model_fn': model_fn,
-            'model_params': {
-                'shape_in': shape_in,
-                'shape_out': shape_out
-            }
-        }
+        params=params
     )
 
     for _ in range(n_checkpoint):
