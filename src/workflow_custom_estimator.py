@@ -160,45 +160,36 @@ def set_model_fn(features: Dict[str, tf.Tensor],
 
     # todo: enhance interaction with TensorBoard
     if mode == est.ModeKeys.TRAIN:
-        with tf.name_scope('train'):
-            result = model(fea, training=True)
+        result = model(fea, training=True)
 
-            optimizer = tf.train.AdamOptimizer()
-            loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
-            mape = tf.reduce_mean(tf.abs(tf.divide(tf.subtract(result, labels), (labels + 1e-10))))
-            train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_or_create_global_step())
+        optimizer = tf.train.AdamOptimizer()
+        loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
+        mape = tf.reduce_mean(tf.abs(tf.divide(tf.subtract(result, labels), (labels + 1e-10))))
+        train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_or_create_global_step())
 
-            tf.identity(learning_rate, 'learning_rate')
-            tf.identity(loss, 'loss')
-            tf.identity(mape, 'mape')
-            with tf.name_scope('train_metrics'):
-                tf.summary.scalar('train_loss', loss)
-                tf.summary.scalar('train_mape', mape)
+        tf.identity(learning_rate, 'learning_rate')
+        tf.identity(loss, 'loss_mse')
+        tf.identity(mape, 'loss_mape')  # 若此处identity如果与下面tf.summary同名，系统仍会认为是两个变量，因此后者会变成mape_1
+        # tf.summary.scalar('train_loss', loss) # loss自动会被记录，无需显示声明tf.summary
+        tf.summary.scalar('mape', mape)  # 将mape画在名为'MAPE'的图上
 
-            logging_hook = tf.train.LoggingTensorHook({'train_mape': mape}, every_n_iter=10)
-
-            return est.EstimatorSpec(
-                mode=mode,
-                loss=loss,
-                train_op=train_op,
-                training_hooks=[logging_hook]
-            )
+        return est.EstimatorSpec(
+            mode=mode,
+            loss=loss,
+            train_op=train_op,
+        )
 
     if mode == est.ModeKeys.EVAL:
         result = model(fea, training=False)
 
         loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
-        rmse = tf.metrics.root_mean_squared_error(labels=labels, predictions=result)
         mape = tf.metrics.mean(math_ops.abs(math_ops.div_no_nan(math_ops.subtract(labels, result), labels + 1e-10)))
 
         # todo: check each shape_out's rmse
 
         eval_metric_ops = {
-            'train_loss/rmse': rmse,
-            'train_loss/mape': mape
+            'mape': mape,  # 将eval的mape值记录在名称为mape的图上
         }
-        tf.summary.scalar('rmse', rmse)
-        tf.summary.scalar('mape', mape)
 
         return est.EstimatorSpec(
             mode=mode,
@@ -213,19 +204,20 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
                             file_test: str,
                             batch_size: int = 10,
                             epochs: int = 10,
-                            steps: int = 1,
                             model_dir: str = r'..\tmp\test',
                             consistent_model: bool = True,
-                            activate_tb: bool = True):
+                            activate_tb: bool = True,
+                            n_checkpoint: int = 1,
+                            ):
     """
 
+    :param n_checkpoint:
     :param shape_in:
     :param shape_out:
     :param file_train:
     :param file_test:
     :param batch_size:
     :param epochs:
-    :param steps:
     :param model_dir:
     :param consistent_model:
     :param activate_tb:
@@ -245,13 +237,13 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
         }
     )
 
-    for _ in range(steps):
+    for _ in range(n_checkpoint):
         estimator.train(
             input_fn=lambda: set_input_fn_tf_record(file_train,
                                                     shape_in=shape_in,
                                                     shape_out=shape_out,
                                                     batch_size=batch_size,
-                                                    num_epochs=epochs)
+                                                    num_epochs=epochs // n_checkpoint),
         )
 
         result = estimator.evaluate(
@@ -262,7 +254,7 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
                                                     num_epochs=1)
         )
 
-        print(result)
+    print(result)
 
     if activate_tb:
         launch_tb(model_dir)
