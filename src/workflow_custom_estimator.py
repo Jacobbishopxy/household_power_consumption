@@ -278,7 +278,7 @@ if __name__ == '__main__':
     FILE_TEST = '../tmp/uni_var_test.tfrecords'
 
     N_IN, N_OUT, FEATURE_COLS = 14, 7, [0]
-    epochs = 100
+    EPOCHS = 100
     SHAPE_IN = (N_IN, len(FEATURE_COLS))
     SHAPE_OUT = (N_OUT,)
 
@@ -299,5 +299,5 @@ if __name__ == '__main__':
                                  shape_out=SHAPE_OUT,
                                  file_train=FILE_TRAIN,
                                  file_test=FILE_TEST,
-                                 epochs=epochs,
+                                 epochs=EPOCHS,
                                  consistent_model=False)
