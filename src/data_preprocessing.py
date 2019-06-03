@@ -3,7 +3,7 @@
 @time 2019/05/22
 """
 from builtins import str
-from typing import Union, List
+from typing import Union, List, Dict
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -29,27 +29,36 @@ def _sliding_window(arr: np.ndarray, window: int, step: int = 1):
 def to_supervised(data: pd.DataFrame,
                   n_in: int,
                   n_out: int,
-                  feature_cols: Union[List[int], int] = 0,
-                  is_train: bool = True):
+                  feature_cols: Union[List[int], List[List[int]]],
+                  is_train: bool = True) -> (Dict[str, np.ndarray], np.ndarray):
     """
 
     :param data:
     :param n_in:
     :param n_out:
-    :param feature_cols:
+    :param feature_cols: List[int] -> single head data, List[List[int]] -> multi head data
     :param is_train:
     :return:
     """
-    cc = [feature_cols] if isinstance(feature_cols, int) else feature_cols
-    raw_features_df = data.iloc[:-n_out, cc]
-    raw_labels_df = data.iloc[n_in:, 0]
 
     if is_train:
         n_in_steps = n_out_steps = 1
     else:
         n_in_steps, n_out_steps = n_in, n_out
 
-    features = _sliding_window(raw_features_df.values, window=n_in, step=n_in_steps)
+    if all(isinstance(i, List) for i in feature_cols):
+        raw_features_list = [data.iloc[:-n_out, i].values for i in feature_cols]
+        features_value = [_sliding_window(i, window=n_in, step=n_in_steps) for i in raw_features_list]
+        features_key = [f'input_{i}' for i in range(len(feature_cols))]
+        features = dict(zip(features_key, features_value))
+    elif all(isinstance(i, int) for i in feature_cols):
+        raw_features = data.iloc[:-n_out, feature_cols].values
+        features_value = _sliding_window(raw_features, window=n_in, step=n_in_steps)
+        features = {'input_0': features_value}
+    else:
+        raise ValueError("feature_cols has to be List[int] or List[List[int]]")
+
+    raw_labels_df = data.iloc[n_in:, 0]
     labels = _sliding_window(raw_labels_df.values, window=n_out, step=n_out_steps)
 
     return features, labels
@@ -59,7 +68,7 @@ def _float_feature(arr: Union[np.ndarray, list]):
     return tf.train.Feature(float_list=tf.train.FloatList(value=arr))
 
 
-def write_tf_record(filename: str, features: np.ndarray, labels: np.ndarray):
+def write_tf_record(filename: str, features: Dict[str, np.ndarray], labels: np.ndarray):
     """
     write features and labels to TFRecord
     :param filename:
@@ -68,9 +77,12 @@ def write_tf_record(filename: str, features: np.ndarray, labels: np.ndarray):
     :return:
     """
     writer = tf.python_io.TFRecordWriter(filename)
-    for i in range(len(features)):
+
+    raw_feat_dict = {k: v.reshape([v.shape[0], -1]) for k, v in features.items()}
+    for i in range(len(labels)):
+        feat_dict = {k: _float_feature(v[i]) for k, v in raw_feat_dict.items()}
         feat = tf.train.Features(feature={
-            'features': _float_feature(features[i]),
+            **feat_dict,
             'labels': _float_feature(labels[i])
         })
         example = tf.train.Example(features=feat)
@@ -78,9 +90,9 @@ def write_tf_record(filename: str, features: np.ndarray, labels: np.ndarray):
     writer.close()
 
 
-def data_to_tf_record(train_features: np.ndarray,
+def data_to_tf_record(train_features: Dict[str, np.ndarray],
                       train_labels: np.ndarray,
-                      test_features: np.ndarray,
+                      test_features: Dict[str, np.ndarray],
                       test_labels: np.ndarray,
                       train_path: str,
                       test_path: str):
@@ -94,12 +106,9 @@ def data_to_tf_record(train_features: np.ndarray,
     :param test_path:
     :return:
     """
-    train_features_vec = train_features.reshape([train_features.shape[0], -1])
-    test_features_vec = test_features.reshape([test_features.shape[0], -1])
-
-    write_tf_record(train_path, train_features_vec, train_labels)
+    write_tf_record(train_path, train_features, train_labels)
     print('train to TFRecord completed')
-    write_tf_record(test_path, test_features_vec, test_labels)
+    write_tf_record(test_path, test_features, test_labels)
     print('test to TFRecord completed')
 
 
@@ -108,7 +117,7 @@ def tf_record_preprocessing(n_in: int,
                             raw_data_path: str,
                             file_train_path: str,
                             file_test_path: str,
-                            feature_cols: Union[List[int], int] = 0):
+                            feature_cols: Union[List[int], List[List[int]]]):
     """
 
     :param n_in:
@@ -119,6 +128,9 @@ def tf_record_preprocessing(n_in: int,
     :param feature_cols:
     :return:
     """
+
+    # todo: check tf records exist
+
     # read from csv
     d = read_data_from_csv(raw_data_path)
     # split train & test
@@ -137,12 +149,12 @@ def tf_record_preprocessing(n_in: int,
 
 if __name__ == '__main__':
     RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
-    FILE_TRAIN = '../tmp/uni_var_train.tfrecords'
-    FILE_TEST = '../tmp/uni_var_test.tfrecords'
+    FILE_TRAIN = '../tmp/multihead_train_[[0][1][2]].tfrecords'
+    FILE_TEST = '../tmp/multihead_test_[[0][1][2]].tfrecords'
 
-    N_IN, N_OUT, FEATURE_COLS = 7, 7, [0]
+    N_IN, N_OUT, FEATURE_COLS = 7, 7, [[0], [1], [2]]
 
     '''
     write data to TFRecord then read and evaluate 
     '''
-    # tf_record_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, FILE_TRAIN, FILE_TEST, feature_cols=FEATURE_COLS)
+    tf_record_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, FILE_TRAIN, FILE_TEST, feature_cols=FEATURE_COLS)

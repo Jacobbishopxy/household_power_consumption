@@ -207,11 +207,10 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
                             model_dir: str = r'..\tmp\test',
                             consistent_model: bool = True,
                             activate_tb: bool = True,
-                            n_checkpoint: int = 1,
+                            n_checkpoints: int = 1,
                             set_model_fn=set_model_fn_default,
                             model_fn=create_vanilla_model,
-                            learning_rate: float = None
-                            ):
+                            learning_rate: float = None):
     """
     :param shape_in:
     :param shape_out:
@@ -222,7 +221,7 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
     :param model_dir:
     :param consistent_model:
     :param activate_tb:
-    :param n_checkpoint:
+    :param n_checkpoints:
     :param set_model_fn:
     :param model_fn:
     :param learning_rate:
@@ -238,6 +237,8 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
         }
     }
 
+    train_epochs = epochs // n_checkpoints
+
     if learning_rate is not None:
         params['learning_rate'] = learning_rate
 
@@ -247,13 +248,13 @@ def estimator_from_model_fn(shape_in: Tuple[int, int],
         params=params
     )
 
-    for _ in range(n_checkpoint):
+    for _ in range(n_checkpoints):
         estimator.train(
             input_fn=lambda: set_input_fn_tf_record(file_train,
                                                     shape_in=shape_in,
                                                     shape_out=shape_out,
                                                     batch_size=batch_size,
-                                                    num_epochs=epochs // n_checkpoint),
+                                                    num_epochs=train_epochs),
         )
 
         result = estimator.evaluate(
