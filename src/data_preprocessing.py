@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+from utils import files_exist
+
 
 def read_data_from_csv(path: str):
     return pd.read_csv(path,
@@ -44,7 +46,7 @@ def to_supervised(data: pd.DataFrame,
     if is_train:
         n_in_steps = n_out_steps = 1
     else:
-        n_in_steps, n_out_steps = n_in, n_out
+        n_in_steps, n_out_steps = n_in, n_in
 
     if all(isinstance(i, List) for i in feature_cols):
         raw_features_list = [data.iloc[:-n_out, i].values for i in feature_cols]
@@ -58,8 +60,8 @@ def to_supervised(data: pd.DataFrame,
     else:
         raise ValueError("feature_cols has to be List[int] or List[List[int]]")
 
-    raw_labels_df = data.iloc[n_in:, 0]
-    labels = _sliding_window(raw_labels_df.values, window=n_out, step=n_out_steps)
+    raw_labels = data.iloc[n_in:, 0].values
+    labels = _sliding_window(raw_labels, window=n_out, step=n_out_steps)
 
     return features, labels
 
@@ -79,11 +81,11 @@ def write_tf_record(filename: str, features: Dict[str, np.ndarray], labels: np.n
     writer = tf.python_io.TFRecordWriter(filename)
 
     raw_feat_dict = {k: v.reshape([v.shape[0], -1]) for k, v in features.items()}
-    for i in range(len(labels)):
-        feat_dict = {k: _float_feature(v[i]) for k, v in raw_feat_dict.items()}
+    for idx in range(len(labels)):
+        feat_dict = {k: _float_feature(v[idx]) for k, v in raw_feat_dict.items()}
         feat = tf.train.Features(feature={
             **feat_dict,
-            'labels': _float_feature(labels[i])
+            'labels': _float_feature(labels[idx])
         })
         example = tf.train.Example(features=feat)
         writer.write(example.SerializeToString())
@@ -129,30 +131,31 @@ def tf_record_preprocessing(n_in: int,
     :return:
     """
 
-    # todo: check tf records exist
-
-    # read from csv
-    d = read_data_from_csv(raw_data_path)
-    # split train & test
-    raw_trn_data, raw_tst_data = split_data(d)
-    # split train/test-x/y
-    trn_fea, trn_lbl = to_supervised(raw_trn_data, n_in, n_out, feature_cols=feature_cols, is_train=True)
-    tst_fea, tst_lbl = to_supervised(raw_tst_data, n_in, n_out, feature_cols=feature_cols, is_train=False)
-    # write final train & test data to TFRecord
-    data_to_tf_record(trn_fea,
-                      trn_lbl,
-                      tst_fea,
-                      tst_lbl,
-                      file_train_path,
-                      file_test_path)
+    if not files_exist([file_train_path, file_test_path]):
+        # read from csv
+        d = read_data_from_csv(raw_data_path)
+        # split train & test
+        raw_trn_data, raw_tst_data = split_data(d)
+        # split train/test-x/y
+        trn_fea, trn_lbl = to_supervised(raw_trn_data, n_in, n_out, feature_cols=feature_cols, is_train=True)
+        tst_fea, tst_lbl = to_supervised(raw_tst_data, n_in, n_out, feature_cols=feature_cols, is_train=False)
+        # write final train & test data to TFRecord
+        data_to_tf_record(trn_fea,
+                          trn_lbl,
+                          tst_fea,
+                          tst_lbl,
+                          file_train_path,
+                          file_test_path)
+    else:
+        print('files already exist')
 
 
 if __name__ == '__main__':
     RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
-    FILE_TRAIN = '../tmp/multihead_train_[[0][1][2]].tfrecords'
-    FILE_TEST = '../tmp/multihead_test_[[0][1][2]].tfrecords'
+    FILE_TRAIN = '../tmp/multihead_train.tfrecords'
+    FILE_TEST = '../tmp/multihead_test.tfrecords'
 
-    N_IN, N_OUT, FEATURE_COLS = 7, 7, [[0], [1], [2]]
+    N_IN, N_OUT, FEATURE_COLS = 14, 7, [[i] for i in range(8)]
 
     '''
     write data to TFRecord then read and evaluate 

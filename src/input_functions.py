@@ -64,12 +64,14 @@ def set_input_fn_tf_record(file_name: str,
                 return fea, lbl
             elif all([isinstance(i, Tuple) for i in shape_in]):
                 n_dim_in_list = [i[0] * i[1] for i in shape_in]
-                feat_dict = {f'input_{k}': tf.FixedLenFeature(v, tf.float32) for k, v in enumerate(n_dim_in_list)}
+                feat_dict = {f'input_{k}': tf.FixedLenFeature(v, tf.float32)
+                             for k, v in enumerate(n_dim_in_list)}
                 feature_def = {**feat_dict,
                                'labels': tf.FixedLenFeature(shape_out[0], tf.float32)}
 
                 features = tf.parse_single_example(example, feature_def)
-                fea = {f'input_{i}': tf.reshape(features[f'input_{i}'], shape_in[i]) for i, v in enumerate(shape_in)}
+                fea = {f'input_{i}': tf.reshape(features[f'input_{i}'], shape_in[i])
+                       for i, v in enumerate(shape_in)}
                 lbl = tf.reshape(features['labels'], shape_out)
                 return fea, lbl
             else:

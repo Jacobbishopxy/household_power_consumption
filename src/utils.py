@@ -5,6 +5,7 @@
 
 import os
 import sys
+from typing import Union, List
 import pandas as pd
 import tensorflow as tf
 from tensorboard import program
@@ -39,3 +40,18 @@ def launch_tb(dir_path: str):
     url = tb.launch()
     sys.stdout.write('TensorBoard at %s \n' % url)
     input('press enter to quit TensorBoard')
+
+
+def files_exist(file_path: Union[str, List[str]]) -> bool:
+    if isinstance(file_path, str):
+        if os.path.isfile(file_path):
+            return True
+        else:
+            return False
+    elif isinstance(file_path, list):
+        if all([os.path.isfile(i) for i in file_path]):
+            return True
+        else:
+            return False
+    else:
+        raise ValueError('file_path should either be str or List[str]')
