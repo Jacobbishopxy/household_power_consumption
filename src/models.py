@@ -91,5 +91,5 @@ def create_multihead_model(shape_in: List[Tuple[int, int]],
         dense2 = tf.keras.layers.Dense(100, activation='relu')(dense1)
         outputs = tf.keras.layers.Dense(n_out)(dense2)
 
-        model = tf.keras.Model(inputs=in_layers, outpus=outputs)
+        model = tf.keras.Model(inputs=in_layers, outputs=outputs)
     return model

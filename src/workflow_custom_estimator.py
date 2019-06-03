@@ -142,7 +142,10 @@ def set_model_fn_default(features: Dict[str, tf.Tensor],
 
     learning_rate = params.get('learning_rate', 1e-4)
 
-    fea = features['inputs']
+    if len(features.keys()) == 1:
+        fea = features['input_0']
+    else:
+        fea = [features[i] for i in features.keys()]
 
     if mode == est.ModeKeys.PREDICT:
         result = model(fea, training=False)

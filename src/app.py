@@ -1,27 +1,76 @@
+"""
+@author Jacob
+@time 2019/06/03
+
+"""
+
 from data_preprocessing import tf_record_preprocessing
 from workflow_custom_estimator import crash_proof, estimator_from_model_fn
-
-crash_proof()
+from models import create_multihead_model
 
 RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
-FILE_TRAIN = '../tmp/uni_var_train.tfrecords'
-FILE_TEST = '../tmp/uni_var_test.tfrecords'
 
-N_IN, N_OUT, FEATURE_COLS = 14, 7, [0]
-EPOCHS = 20
-BATCH_SIZE = 20
 
-SHAPE_IN = (N_IN, len(FEATURE_COLS))
-SHAPE_OUT = (N_OUT,)
+def univ_test():
+    file_train = '../tmp/uni_var_train.tfrecords'
+    file_test = '../tmp/uni_var_test.tfrecords'
 
-tf_record_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, FILE_TRAIN, FILE_TEST, feature_cols=FEATURE_COLS)
+    n_in, n_out, feature_cols = 14, 7, [0]
+    epochs = 20
 
-e3 = estimator_from_model_fn(
-    shape_in=SHAPE_IN,
-    shape_out=SHAPE_OUT,
-    file_train=FILE_TRAIN,
-    file_test=FILE_TEST,
-    epochs=EPOCHS,
-    consistent_model=False,
-    learning_rate=1e-3
-)
+    shape_in, shape_out = (n_in, len(feature_cols)), (n_out,)
+
+    tf_record_preprocessing(n_in=n_in,
+                            n_out=n_out,
+                            raw_data_path=RAW_DATA_PATH,
+                            file_train_path=file_train,
+                            file_test_path=file_test,
+                            feature_cols=feature_cols)
+
+    e = estimator_from_model_fn(shape_in=shape_in,
+                                shape_out=shape_out,
+                                file_train=file_train,
+                                file_test=file_test,
+                                epochs=epochs,
+                                consistent_model=False,
+                                learning_rate=1e-3)
+
+    return e
+
+
+def multi_head_test():
+    _file_pattern = '../tmp/multihead_X.tfrecords'
+
+    file_train = _file_pattern.replace('X', 'train')
+    file_test = _file_pattern.replace('X', 'test')
+
+    n_in, n_out, feature_cols = 14, 7, [[i] for i in range(8)]
+    epochs = 20
+
+    shape_in, shape_out = [(n_in, len(i)) for i in feature_cols], (n_out,)
+
+    tf_record_preprocessing(n_in=n_in,
+                            n_out=n_out,
+                            raw_data_path=RAW_DATA_PATH,
+                            file_train_path=file_train,
+                            file_test_path=file_test,
+                            feature_cols=feature_cols)
+
+    e = estimator_from_model_fn(shape_in=shape_in,
+                                shape_out=shape_out,
+                                file_train=file_train,
+                                file_test=file_test,
+                                epochs=epochs,
+                                consistent_model=False,
+                                learning_rate=1e-3,
+                                keras_model=create_multihead_model)
+
+    return e
+
+
+if __name__ == '__main__':
+    crash_proof()
+
+    e1 = univ_test()
+
+    # e2 = multi_head_test()
