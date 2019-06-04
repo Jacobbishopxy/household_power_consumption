@@ -123,10 +123,10 @@ def estimator_from_tf_record(shape_in: Tuple[int, int],
     return estimator
 
 
-def set_model_fn_default(features: Dict[str, tf.Tensor],
-                         labels: tf.Tensor,
-                         mode: est.ModeKeys,
-                         params: Dict[str, Any]):
+def model_fn_default(features: Dict[str, tf.Tensor],
+                     labels: tf.Tensor,
+                     mode: est.ModeKeys,
+                     params: Dict[str, Any]):
     """
 
     :param features:
@@ -135,10 +135,8 @@ def set_model_fn_default(features: Dict[str, tf.Tensor],
     :param params:
     :return:
     """
-    model_fn = params.get('model_fn')
-    model_params = params.get('model_params')
-    model = model_fn(**model_params)
-    model.summary()
+    network_fn = params.get('network_fn')
+    network_params = params.get('network_params')
 
     learning_rate = params.get('learning_rate', 1e-4)
 
@@ -148,7 +146,10 @@ def set_model_fn_default(features: Dict[str, tf.Tensor],
         fea = [features[i] for i in features.keys()]
 
     if mode == est.ModeKeys.PREDICT:
-        result = model(fea, training=False)
+        print('~~~~~mode=predict~~~~~')
+        network = network_fn(**network_params)
+        is_training = False
+        result = network(fea, training=is_training)
 
         predictions = {
             'prices': tf.squeeze(result, axis=1),
@@ -163,7 +164,13 @@ def set_model_fn_default(features: Dict[str, tf.Tensor],
 
     # todo: enhance interaction with TensorBoard
     if mode == est.ModeKeys.TRAIN:
-        result = model(fea, training=True)
+        print('~~~~~mode=train~~~~~')
+        network_params_train = network_params.copy()
+        is_training = True
+        network_params_train['is_training'] = is_training
+        network = network_fn(**network_params_train)
+
+        result = network(fea, training=is_training)
 
         optimizer = tf.train.AdamOptimizer()
         loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
@@ -183,7 +190,10 @@ def set_model_fn_default(features: Dict[str, tf.Tensor],
         )
 
     if mode == est.ModeKeys.EVAL:
-        result = model(fea, training=False)
+        print('~~~~~mode=eval~~~~~')
+        network = network_fn(**network_params)
+        is_training = False
+        result = network(fea, training=is_training)
 
         loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
         mape = tf.metrics.mean(math_ops.abs(math_ops.div_no_nan(math_ops.subtract(labels, result), labels + 1e-10)))
@@ -211,10 +221,13 @@ def estimator_from_model_fn(shape_in: Union[Tuple[int, int], List[Tuple[int, int
                             consistent_model: bool = True,
                             activate_tb: bool = True,
                             n_checkpoints: int = 1,
-                            model_fn=set_model_fn_default,
-                            keras_model=create_vanilla_model,
-                            learning_rate: float = None):
+                            model_fn=model_fn_default,
+                            network_fn=create_vanilla_model,
+                            learning_rate: float = None,
+                            batch_norm: bool = False
+                            ):
     """
+    :param batch_norm:
     :param shape_in:
     :param shape_out:
     :param file_train:
@@ -226,18 +239,19 @@ def estimator_from_model_fn(shape_in: Union[Tuple[int, int], List[Tuple[int, int
     :param activate_tb:
     :param n_checkpoints:
     :param model_fn:
-    :param keras_model:
+    :param network_fn:
     :param learning_rate:
     :return:
     """
     model_dir = create_model_dir(model_dir, consistent_model=consistent_model)
 
     params = {
-        'model_fn': keras_model,
-        'model_params': {
+        'network_fn': network_fn,
+        'network_params': {
             'shape_in': shape_in,
-            'shape_out': shape_out
-        }
+            'shape_out': shape_out,
+            'batch_norm': batch_norm,
+        },
     }
 
     train_epochs = epochs // n_checkpoints
