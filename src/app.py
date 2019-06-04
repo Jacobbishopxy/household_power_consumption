@@ -6,7 +6,7 @@
 
 from data_preprocessing import tf_record_preprocessing
 from workflow_custom_estimator import crash_proof, estimator_from_model_fn
-from models import create_multihead_model
+from models import create_multihead_model, create_vanilla_model
 
 RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
 
@@ -33,7 +33,10 @@ def univ_test():
                                 file_test=file_test,
                                 epochs=epochs,
                                 consistent_model=False,
-                                learning_rate=1e-3)
+                                learning_rate=1e-3,
+                                network_fn=create_vanilla_model,
+                                batch_norm=True
+                                )
 
     return e
 
@@ -56,14 +59,16 @@ def multi_head_test():
                             file_test_path=file_test,
                             feature_cols=feature_cols)
 
-    e = estimator_from_model_fn(shape_in=shape_in,
-                                shape_out=shape_out,
-                                file_train=file_train,
-                                file_test=file_test,
-                                epochs=epochs,
-                                consistent_model=False,
-                                learning_rate=1e-3,
-                                keras_model=create_multihead_model)
+    e = estimator_from_model_fn(
+        shape_in=shape_in,
+        shape_out=shape_out,
+        file_train=file_train,
+        file_test=file_test,
+        epochs=epochs,
+        consistent_model=False,
+        learning_rate=1e-3,
+        network_fn=create_multihead_model,
+    )
 
     return e
 
