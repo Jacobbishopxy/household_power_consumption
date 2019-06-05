@@ -120,3 +120,7 @@ logs
 
 tmp/
 
+/src/barra/data/*
+!/src/barra/data/README.md
+!/src/barra/data/factor_type.pkl
+

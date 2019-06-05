@@ -50,33 +50,34 @@ def set_input_fn_tf_record(file_name: str,
     :param num_epochs:
     :return:
     """
+
+    def _data_from_tf_record(example):
+        if isinstance(shape_in, Tuple):
+            n_in, num_fea = shape_in
+            n_dim_in = n_in * num_fea
+            feature_def = {'input_0': tf.FixedLenFeature(n_dim_in, tf.float32),
+                           'labels': tf.FixedLenFeature(shape_out[0], tf.float32)}
+
+            features = tf.parse_single_example(example, feature_def)
+            fea = {'input_0': tf.reshape(features['input_0'], shape_in)}
+            lbl = tf.reshape(features['labels'], shape_out)
+            return fea, lbl
+        elif all([isinstance(i, Tuple) for i in shape_in]):
+            n_dim_in_list = [i[0] * i[1] for i in shape_in]
+            feat_dict = {f'input_{k}': tf.FixedLenFeature(v, tf.float32)
+                         for k, v in enumerate(n_dim_in_list)}
+            feature_def = {**feat_dict,
+                           'labels': tf.FixedLenFeature(shape_out[0], tf.float32)}
+
+            features = tf.parse_single_example(example, feature_def)
+            fea = {f'input_{i}': tf.reshape(features[f'input_{i}'], shape_in[i])
+                   for i, v in enumerate(shape_in)}
+            lbl = tf.reshape(features['labels'], shape_out)
+            return fea, lbl
+        else:
+            raise ValueError("shape_in has to be Tuple[int, int] or List[Tuple[int, int]]")
+
     with tf.name_scope("Dataset"):
-        def _data_from_tf_record(example):
-            if isinstance(shape_in, Tuple):
-                n_in, num_fea = shape_in
-                n_dim_in = n_in * num_fea
-                feature_def = {'input_0': tf.FixedLenFeature(n_dim_in, tf.float32),
-                               'labels': tf.FixedLenFeature(shape_out[0], tf.float32)}
-
-                features = tf.parse_single_example(example, feature_def)
-                fea = {'input_0': tf.reshape(features['input_0'], shape_in)}
-                lbl = tf.reshape(features['labels'], shape_out)
-                return fea, lbl
-            elif all([isinstance(i, Tuple) for i in shape_in]):
-                n_dim_in_list = [i[0] * i[1] for i in shape_in]
-                feat_dict = {f'input_{k}': tf.FixedLenFeature(v, tf.float32)
-                             for k, v in enumerate(n_dim_in_list)}
-                feature_def = {**feat_dict,
-                               'labels': tf.FixedLenFeature(shape_out[0], tf.float32)}
-
-                features = tf.parse_single_example(example, feature_def)
-                fea = {f'input_{i}': tf.reshape(features[f'input_{i}'], shape_in[i])
-                       for i, v in enumerate(shape_in)}
-                lbl = tf.reshape(features['labels'], shape_out)
-                return fea, lbl
-            else:
-                raise ValueError("shape_in has to be Tuple[int, int] or List[Tuple[int, int]]")
-
         dataset = tf.data.TFRecordDataset(file_name)
         dataset = dataset.map(_data_from_tf_record)
         dataset = dataset.batch(batch_size)

@@ -51,26 +51,36 @@ def create_vanilla_model(shape_in: Tuple[int, int], shape_out: Tuple[int], batch
 
         # conv1
         if batch_norm:
-            conv1 = tf.keras.layers.Conv1D(filters=16, kernel_size=3, padding='same',
-                                           activation=None, use_bias=False
-                                           )(norm_layer)
+            conv1 = tf.keras.layers.Conv1D(filters=16,
+                                           kernel_size=3,
+                                           padding='same',
+                                           activation=None,
+                                           use_bias=False)(norm_layer)
             conv1 = tf.keras.layers.BatchNormalization()(conv1)
             conv1 = tf.keras.layers.ReLU()(conv1)
             conv1 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv1)
         else:
-            conv1 = tf.keras.layers.Conv1D(filters=16, kernel_size=3, activation='relu', padding='same')(norm_layer)
+            conv1 = tf.keras.layers.Conv1D(filters=16,
+                                           kernel_size=3,
+                                           activation='relu',
+                                           padding='same')(norm_layer)
             conv1 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv1)
 
         # conv2
         if batch_norm:
-            conv2 = tf.keras.layers.Conv1D(filters=32, kernel_size=3, padding='same',
-                                           activation=None, use_bias=False
-                                           )(conv1)
+            conv2 = tf.keras.layers.Conv1D(filters=32,
+                                           kernel_size=3,
+                                           padding='same',
+                                           activation=None,
+                                           use_bias=False)(conv1)
             conv2 = tf.keras.layers.BatchNormalization()(conv2)
             conv2 = tf.keras.layers.ReLU()(conv2)
             conv2 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv2)
         else:
-            conv2 = tf.keras.layers.Conv1D(filters=32, kernel_size=3, activation='relu', padding='same')(conv1)
+            conv2 = tf.keras.layers.Conv1D(filters=32,
+                                           kernel_size=3,
+                                           activation='relu',
+                                           padding='same')(conv1)
             conv2 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv2)
 
         # dense1

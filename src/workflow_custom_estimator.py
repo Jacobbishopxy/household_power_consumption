@@ -162,7 +162,6 @@ def model_fn_default(features: Dict[str, tf.Tensor],
             }
         )
 
-    # todo: enhance interaction with TensorBoard
     if mode == est.ModeKeys.TRAIN:
         print('~~~~~mode=train~~~~~')
         result = network(fea)
@@ -189,8 +188,6 @@ def model_fn_default(features: Dict[str, tf.Tensor],
 
         loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
         mape = tf.metrics.mean(math_ops.abs(math_ops.div_no_nan(math_ops.subtract(labels, result), labels + 1e-10)))
-
-        # todo: check each shape_out's rmse
 
         eval_metric_ops = {
             'mape': mape,  # 将eval的mape值记录在名称为mape的图上
