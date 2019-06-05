@@ -145,11 +145,11 @@ def model_fn_default(features: Dict[str, tf.Tensor],
     else:
         fea = [features[i] for i in features.keys()]
 
+    network = network_fn(**network_params)
+
     if mode == est.ModeKeys.PREDICT:
         print('~~~~~mode=predict~~~~~')
-        network = network_fn(**network_params)
-        is_training = False
-        result = network(fea, training=is_training)
+        result = network(fea)
 
         predictions = {
             'prices': tf.squeeze(result, axis=1),
@@ -165,12 +165,7 @@ def model_fn_default(features: Dict[str, tf.Tensor],
     # todo: enhance interaction with TensorBoard
     if mode == est.ModeKeys.TRAIN:
         print('~~~~~mode=train~~~~~')
-        network_params_train = network_params.copy()
-        is_training = True
-        network_params_train['is_training'] = is_training
-        network = network_fn(**network_params_train)
-
-        result = network(fea, training=is_training)
+        result = network(fea)
 
         optimizer = tf.train.AdamOptimizer()
         loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
@@ -190,10 +185,7 @@ def model_fn_default(features: Dict[str, tf.Tensor],
         )
 
     if mode == est.ModeKeys.EVAL:
-        print('~~~~~mode=eval~~~~~')
-        network = network_fn(**network_params)
-        is_training = False
-        result = network(fea, training=is_training)
+        result = network(fea)
 
         loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
         mape = tf.metrics.mean(math_ops.abs(math_ops.div_no_nan(math_ops.subtract(labels, result), labels + 1e-10)))

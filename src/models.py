@@ -38,10 +38,8 @@ def create_compiled_model(shape_in: Tuple[int, int], shape_out: Tuple[int]):
     return model
 
 
-def create_vanilla_model(shape_in: Tuple[int, int], shape_out: Tuple[int],
-                         batch_norm: bool = False, is_training: bool = False):
+def create_vanilla_model(shape_in: Tuple[int, int], shape_out: Tuple[int], batch_norm: bool = False):
     n_out = shape_out[0]
-    print(f'is_training={is_training}, batch_norm={batch_norm}')
 
     with tf.name_scope('keras_model'):
         # input layer
@@ -56,7 +54,7 @@ def create_vanilla_model(shape_in: Tuple[int, int], shape_out: Tuple[int],
             conv1 = tf.keras.layers.Conv1D(filters=16, kernel_size=3, padding='same',
                                            activation=None, use_bias=False
                                            )(norm_layer)
-            conv1 = tf.keras.layers.BatchNormalization()(conv1, training=is_training)
+            conv1 = tf.keras.layers.BatchNormalization()(conv1)
             conv1 = tf.keras.layers.ReLU()(conv1)
             conv1 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv1)
         else:
@@ -68,7 +66,7 @@ def create_vanilla_model(shape_in: Tuple[int, int], shape_out: Tuple[int],
             conv2 = tf.keras.layers.Conv1D(filters=32, kernel_size=3, padding='same',
                                            activation=None, use_bias=False
                                            )(conv1)
-            conv2 = tf.keras.layers.BatchNormalization()(conv2, training=is_training)
+            conv2 = tf.keras.layers.BatchNormalization()(conv2)
             conv2 = tf.keras.layers.ReLU()(conv2)
             conv2 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv2)
         else:
@@ -78,12 +76,12 @@ def create_vanilla_model(shape_in: Tuple[int, int], shape_out: Tuple[int],
         # dense1
         dns1 = tf.keras.layers.Flatten()(conv2)
         if batch_norm:
-            dns1 = tf.keras.layers.BatchNormalization()(dns1, training=is_training)
+            dns1 = tf.keras.layers.BatchNormalization()(dns1)
         dns1 = tf.keras.layers.Dense(28, activation='relu')(dns1)
 
         # dense2(output layer)
         if batch_norm:
-            dns2 = tf.keras.layers.BatchNormalization()(dns1, training=is_training)
+            dns2 = tf.keras.layers.BatchNormalization()(dns1)
             dns2 = tf.keras.layers.Dense(n_out)(dns2)
         else:
             dns2 = tf.keras.layers.Dense(n_out)(dns1)
