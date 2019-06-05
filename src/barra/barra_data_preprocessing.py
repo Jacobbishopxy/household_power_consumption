@@ -8,8 +8,8 @@ import pandas as pd
 import math
 from enum import Enum
 
-from data_preprocessing import to_supervised, data_to_tf_record
-from utils import files_exist
+from data_preprocessing import to_supervised, data_to_tf_records
+from utils import files_exist, generate_tf_records_path
 
 FACTOR_TYPE_DICT = pd.read_pickle('./data/factor_type.pkl')
 
@@ -38,13 +38,14 @@ def split_data(data: pd.DataFrame, train_size_pct: float):
 def tf_record_preprocessing(n_in: int,
                             n_out: int,
                             raw_data_path: str,
-                            file_train_path: str,
-                            file_test_path: str,
+                            tf_records_name: str,
                             feature_cols: Union[List[int], List[List[int]]],
                             label_col: int,
                             factor_type: FactorType,
                             train_size_pct: float = .8):
-    if not files_exist([file_train_path, file_test_path]):
+    train_path, test_path = generate_tf_records_path(tf_records_name)
+
+    if not files_exist([train_path, test_path]):
         # read from csv
         d = read_data_from_csv(raw_data_path)
         # select factor type
@@ -66,28 +67,25 @@ def tf_record_preprocessing(n_in: int,
                                          feature_cols=feature_cols,
                                          is_train=True)
 
-        data_to_tf_record(trn_fea,
-                          trn_lbl,
-                          tst_fea,
-                          tst_lbl,
-                          file_train_path,
-                          file_test_path)
+        data_to_tf_records(trn_fea,
+                           trn_lbl,
+                           tst_fea,
+                           tst_lbl,
+                           tf_records_name)
     else:
         print('files already exist, if new records pls rename')
 
 
 if __name__ == '__main__':
     RAW_DATA_PATH = './data/factor_return.csv'
-    FILE_TRAIN = './tmp/univariate_style_train.tfrecords'
-    FILE_TEST = './tmp/univariate_style_test.tfrecords'
+    TF_RECORDS_NAME = 'barra_style_univariate'
 
     N_IN, N_OUT, FEATURE_COLS, LABEL_COL = 14, 7, [0], 0
 
     tf_record_preprocessing(n_in=N_IN,
                             n_out=N_OUT,
                             raw_data_path=RAW_DATA_PATH,
-                            file_train_path=FILE_TRAIN,
-                            file_test_path=FILE_TEST,
+                            tf_records_name=TF_RECORDS_NAME,
                             feature_cols=FEATURE_COLS,
                             label_col=LABEL_COL,
                             factor_type=FactorType.STYLE)

@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-from utils import files_exist, print_features_labels_name
+from utils import files_exist, print_features_labels_name, create_file_dir, generate_tf_records_path
 
 
 def read_data_from_csv(path: str):
@@ -92,46 +92,49 @@ def write_tf_record(filename: str, features: Dict[str, np.ndarray], labels: np.n
     writer.close()
 
 
-def data_to_tf_record(train_features: Dict[str, np.ndarray],
-                      train_labels: np.ndarray,
-                      test_features: Dict[str, np.ndarray],
-                      test_labels: np.ndarray,
-                      train_path: str,
-                      test_path: str):
+def data_to_tf_records(train_features: Dict[str, np.ndarray],
+                       train_labels: np.ndarray,
+                       test_features: Dict[str, np.ndarray],
+                       test_labels: np.ndarray,
+                       tf_records_name: str):
     """
     train & test write to TFRecord
     :param train_features:
     :param train_labels:
     :param test_features:
     :param test_labels:
-    :param train_path:
-    :param test_path:
+    :param tf_records_name:
     :return:
     """
+
+    train_path, test_path = generate_tf_records_path(tf_records_name)
+
+    create_file_dir(train_path)
+
     write_tf_record(train_path, train_features, train_labels)
     print('train to TFRecord completed')
     write_tf_record(test_path, test_features, test_labels)
     print('test to TFRecord completed')
 
 
-def tf_record_preprocessing(n_in: int,
-                            n_out: int,
-                            raw_data_path: str,
-                            file_train_path: str,
-                            file_test_path: str,
-                            feature_cols: Union[List[int], List[List[int]]]):
+def tf_records_preprocessing(n_in: int,
+                             n_out: int,
+                             raw_data_path: str,
+                             tf_records_name: str,
+                             feature_cols: Union[List[int], List[List[int]]]):
     """
 
     :param n_in:
     :param n_out:
     :param raw_data_path:
-    :param file_train_path:
-    :param file_test_path:
+    :param tf_records_name:
     :param feature_cols:
     :return:
     """
 
-    if not files_exist([file_train_path, file_test_path]):
+    train_path, test_path = generate_tf_records_path(tf_records_name)
+
+    if not files_exist([train_path, test_path]):
         # read from csv
         d = read_data_from_csv(raw_data_path)
         # split train & test
@@ -150,24 +153,22 @@ def tf_record_preprocessing(n_in: int,
                                          label_col=0,
                                          is_train=False)
         # write final train & test data to TFRecord
-        data_to_tf_record(trn_fea,
-                          trn_lbl,
-                          tst_fea,
-                          tst_lbl,
-                          file_train_path,
-                          file_test_path)
+        data_to_tf_records(trn_fea,
+                           trn_lbl,
+                           tst_fea,
+                           tst_lbl,
+                           tf_records_name)
     else:
         print('files already exist')
 
 
 if __name__ == '__main__':
     RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
-    FILE_TRAIN = '../tmp/multihead_train.tfrecords'
-    FILE_TEST = '../tmp/multihead_test.tfrecords'
+    TF_RECORDS_NAME = 'multihead'
 
     N_IN, N_OUT, FEATURE_COLS = 14, 7, [[i] for i in range(8)]
 
     '''
     write data to TFRecord then read and evaluate 
     '''
-    tf_record_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, FILE_TRAIN, FILE_TEST, feature_cols=FEATURE_COLS)
+    tf_records_preprocessing(N_IN, N_OUT, RAW_DATA_PATH, TF_RECORDS_NAME, feature_cols=FEATURE_COLS)

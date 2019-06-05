@@ -7,6 +7,8 @@ from typing import Union, List, Tuple, Optional, Dict, Any
 import numpy as np
 import tensorflow as tf
 
+from utils import generate_tf_records_path
+
 
 def _parse(feature: np.ndarray, label: np.ndarray):
     return {'inputs': feature}, label
@@ -36,20 +38,25 @@ def set_input_fn_csv(features: np.ndarray,
     return batch_features, batch_labels
 
 
-def set_input_fn_tf_record(file_name: str,
+def set_input_fn_tf_record(tf_records_name: str,
+                           is_train: bool,
                            shape_in: Union[Tuple[int, int], List[Tuple[int, int]]],
                            shape_out: Tuple[int],
                            batch_size: int,
                            num_epochs: int = 1):
     """
 
-    :param file_name:
+    :param tf_records_name:
+    :param is_train:
     :param shape_in: Tuple[int, int] -> single head data, List[Tuple[int, int]] -> multi head data
     :param shape_out:
     :param batch_size:
     :param num_epochs:
     :return:
     """
+
+    train_path, test_path = generate_tf_records_path(tf_records_name)
+    dataset_path = train_path if is_train else test_path
 
     def _data_from_tf_record(example):
         if isinstance(shape_in, Tuple):
@@ -78,7 +85,7 @@ def set_input_fn_tf_record(file_name: str,
             raise ValueError("shape_in has to be Tuple[int, int] or List[Tuple[int, int]]")
 
     with tf.name_scope("Dataset"):
-        dataset = tf.data.TFRecordDataset(file_name)
+        dataset = tf.data.TFRecordDataset(dataset_path)
         dataset = dataset.map(_data_from_tf_record)
         dataset = dataset.batch(batch_size)
         dataset = dataset.repeat(num_epochs)
@@ -91,6 +98,7 @@ if __name__ == '__main__':
     FILE_TEST = '../tmp/multihead_test_[[0][1][2]].tfrecords'
 
     ds = set_input_fn_tf_record(FILE_TRAIN,
+                                is_train=True,
                                 shape_in=[(7, 1), (7, 1), (7, 1)],
                                 shape_out=(7,),
                                 batch_size=4)

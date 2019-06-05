@@ -12,7 +12,7 @@ import tensorflow as tf
 from tensorflow_estimator import estimator as est
 from tensorflow.python.ops import math_ops
 
-from models import create_compiled_model, model_to_estimator, create_vanilla_model
+from networks import create_compiled_model, model_to_estimator, create_vanilla_model
 from input_functions import set_input_fn_csv, set_input_fn_tf_record
 from data_preprocessing import read_data_from_csv, split_data, to_supervised
 from utils import crash_proof, create_model_dir, launch_tb
@@ -50,8 +50,18 @@ def estimator_from_csv(shape_in: Tuple[int, int],
 
     d = read_data_from_csv(file_csv)
     raw_trn_data, raw_tst_data = split_data(d)
-    trn_fea, trn_lbl = to_supervised(raw_trn_data, n_in, n_out, feature_cols=feature_cols, is_train=True)
-    tst_fea, tst_lbl = to_supervised(raw_tst_data, n_in, n_out, feature_cols=feature_cols, is_train=False)
+    trn_fea, trn_lbl = to_supervised(raw_trn_data,
+                                     n_in,
+                                     n_out,
+                                     feature_cols=feature_cols,
+                                     label_col=0,
+                                     is_train=True)
+    tst_fea, tst_lbl = to_supervised(raw_tst_data,
+                                     n_in,
+                                     n_out,
+                                     feature_cols=feature_cols,
+                                     label_col=0,
+                                     is_train=False)
 
     for _ in range(steps):
         estimator.train(
@@ -63,8 +73,7 @@ def estimator_from_csv(shape_in: Tuple[int, int],
         result = estimator.evaluate(
             input_fn=lambda: set_input_fn_csv(tst_fea,
                                               tst_lbl,
-                                              batch_size=batch_size,
-                                              num_epochs=1)
+                                              batch_size=batch_size)
         )
         print(result)
 
@@ -75,8 +84,7 @@ def estimator_from_csv(shape_in: Tuple[int, int],
 
 def estimator_from_tf_record(shape_in: Tuple[int, int],
                              shape_out: Tuple[int],
-                             file_train: str,
-                             file_test: str,
+                             tf_records_name: str,
                              batch_size: int = 10,
                              epochs: Optional[int] = 10,
                              steps: int = 1,
@@ -87,8 +95,7 @@ def estimator_from_tf_record(shape_in: Tuple[int, int],
     train & test read from TFRecord
     :param shape_in:
     :param shape_out:
-    :param file_train:
-    :param file_test:
+    :param tf_records_name:
     :param batch_size:
     :param epochs:
     :param steps:
@@ -103,18 +110,19 @@ def estimator_from_tf_record(shape_in: Tuple[int, int],
 
     for _ in range(steps):
         estimator.train(
-            input_fn=lambda: set_input_fn_tf_record(file_train,
+            input_fn=lambda: set_input_fn_tf_record(tf_records_name,
+                                                    is_train=True,
                                                     shape_in=shape_in,
                                                     shape_out=shape_out,
                                                     batch_size=batch_size,
                                                     num_epochs=epochs)
         )
         result = estimator.evaluate(
-            input_fn=lambda: set_input_fn_tf_record(file_test,
+            input_fn=lambda: set_input_fn_tf_record(tf_records_name,
+                                                    is_train=False,
                                                     shape_in=shape_in,
                                                     shape_out=shape_out,
-                                                    batch_size=batch_size,
-                                                    num_epochs=1)
+                                                    batch_size=batch_size)
         )
         print(result)
 
@@ -174,7 +182,6 @@ def model_fn_default(features: Dict[str, tf.Tensor],
         tf.identity(learning_rate, 'learning_rate')
         tf.identity(loss, 'loss_mse')
         tf.identity(mape, 'loss_mape')  # 若此处identity如果与下面tf.summary同名，系统仍会认为是两个变量，因此后者会变成mape_1
-        # tf.summary.scalar('train_loss', loss) # loss自动会被记录，无需显示声明tf.summary
         tf.summary.scalar('mape', mape)  # 将mape画在名为'MAPE'的图上
 
         return est.EstimatorSpec(
@@ -184,6 +191,7 @@ def model_fn_default(features: Dict[str, tf.Tensor],
         )
 
     if mode == est.ModeKeys.EVAL:
+        print('~~~~~mode=eval~~~~~')
         result = network(fea)
 
         loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
@@ -202,8 +210,7 @@ def model_fn_default(features: Dict[str, tf.Tensor],
 
 def estimator_from_model_fn(shape_in: Union[Tuple[int, int], List[Tuple[int, int]]],
                             shape_out: Tuple[int],
-                            file_train: str,
-                            file_test: str,
+                            tf_records_name: str,
                             batch_size: int = 10,
                             epochs: int = 10,
                             model_dir: str = r'..\tmp\test',
@@ -213,14 +220,12 @@ def estimator_from_model_fn(shape_in: Union[Tuple[int, int], List[Tuple[int, int
                             model_fn=model_fn_default,
                             network_fn=create_vanilla_model,
                             learning_rate: float = None,
-                            batch_norm: bool = False
-                            ):
+                            batch_norm: bool = False):
     """
     :param batch_norm:
     :param shape_in:
     :param shape_out:
-    :param file_train:
-    :param file_test:
+    :param tf_records_name:
     :param batch_size:
     :param epochs:
     :param model_dir:
@@ -256,7 +261,8 @@ def estimator_from_model_fn(shape_in: Union[Tuple[int, int], List[Tuple[int, int
 
     for _ in range(n_checkpoints):
         estimator.train(
-            input_fn=lambda: set_input_fn_tf_record(file_train,
+            input_fn=lambda: set_input_fn_tf_record(tf_records_name,
+                                                    is_train=True,
                                                     shape_in=shape_in,
                                                     shape_out=shape_out,
                                                     batch_size=batch_size,
@@ -264,11 +270,11 @@ def estimator_from_model_fn(shape_in: Union[Tuple[int, int], List[Tuple[int, int
         )
 
         result = estimator.evaluate(
-            input_fn=lambda: set_input_fn_tf_record(file_test,
+            input_fn=lambda: set_input_fn_tf_record(tf_records_name,
+                                                    is_train=False,
                                                     shape_in=shape_in,
                                                     shape_out=shape_out,
-                                                    batch_size=batch_size,
-                                                    num_epochs=1)
+                                                    batch_size=batch_size)
         )
 
         print(result)
@@ -288,8 +294,7 @@ if __name__ == '__main__':
     '''
 
     RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
-    FILE_TRAIN = '../tmp/uni_var_train.tfrecords'
-    FILE_TEST = '../tmp/uni_var_test.tfrecords'
+    TF_RECORDS_NAME = 'uni_var_train'
 
     N_IN, N_OUT, FEATURE_COLS = 14, 7, [0]
     EPOCHS = 100
@@ -304,14 +309,13 @@ if __name__ == '__main__':
     '''
     read data from TFRecord
     '''
-    # e2 = estimator_from_tf_record(SHAPE_IN, SHAPE_OUT, file_train=FILE_TRAIN, file_test=FILE_TEST, activate_tb=True)
+    # e2 = estimator_from_tf_record(SHAPE_IN, SHAPE_OUT, tf_records_name=TF_RECORDS_NAME, activate_tb=True)
 
     '''
     use model fn to create an estimator    
     '''
     e3 = estimator_from_model_fn(shape_in=SHAPE_IN,
                                  shape_out=SHAPE_OUT,
-                                 file_train=FILE_TRAIN,
-                                 file_test=FILE_TEST,
+                                 tf_records_name=TF_RECORDS_NAME,
                                  epochs=EPOCHS,
                                  consistent_model=False)
