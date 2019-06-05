@@ -2,13 +2,13 @@
 @author Jacob
 @time 2019/05/22
 """
-from builtins import str
+
 from typing import Union, List, Dict
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-from utils import files_exist
+from utils import files_exist, print_features_labels_name
 
 
 def read_data_from_csv(path: str):
@@ -32,6 +32,7 @@ def to_supervised(data: pd.DataFrame,
                   n_in: int,
                   n_out: int,
                   feature_cols: Union[List[int], List[List[int]]],
+                  label_col: int,
                   is_train: bool = True) -> (Dict[str, np.ndarray], np.ndarray):
     """
 
@@ -39,30 +40,29 @@ def to_supervised(data: pd.DataFrame,
     :param n_in:
     :param n_out:
     :param feature_cols: List[int] -> single head data, List[List[int]] -> multi head data
+    :param label_col: 
     :param is_train:
     :return:
     """
 
-    if is_train:
-        n_in_steps = n_out_steps = 1
-    else:
-        n_in_steps, n_out_steps = n_in, n_in
+    n_steps = 1 if is_train else n_in
 
     if all(isinstance(i, List) for i in feature_cols):
         raw_features_list = [data.iloc[:-n_out, i].values for i in feature_cols]
-        features_value = [_sliding_window(i, window=n_in, step=n_in_steps) for i in raw_features_list]
+        features_value = [_sliding_window(i, window=n_in, step=n_steps) for i in raw_features_list]
         features_key = [f'input_{i}' for i in range(len(feature_cols))]
         features = dict(zip(features_key, features_value))
     elif all(isinstance(i, int) for i in feature_cols):
         raw_features = data.iloc[:-n_out, feature_cols].values
-        features_value = _sliding_window(raw_features, window=n_in, step=n_in_steps)
+        features_value = _sliding_window(raw_features, window=n_in, step=n_steps)
         features = {'input_0': features_value}
     else:
         raise ValueError("feature_cols has to be List[int] or List[List[int]]")
 
-    raw_labels = data.iloc[n_in:, 0].values
-    labels = _sliding_window(raw_labels, window=n_out, step=n_out_steps)
+    raw_labels = data.iloc[n_in:, label_col].values
+    labels = _sliding_window(raw_labels, window=n_out, step=n_steps)
 
+    print_features_labels_name(data, feature_cols, label_col)
     return features, labels
 
 
@@ -137,8 +137,18 @@ def tf_record_preprocessing(n_in: int,
         # split train & test
         raw_trn_data, raw_tst_data = split_data(d)
         # split train/test-x/y
-        trn_fea, trn_lbl = to_supervised(raw_trn_data, n_in, n_out, feature_cols=feature_cols, is_train=True)
-        tst_fea, tst_lbl = to_supervised(raw_tst_data, n_in, n_out, feature_cols=feature_cols, is_train=False)
+        trn_fea, trn_lbl = to_supervised(raw_trn_data,
+                                         n_in,
+                                         n_out,
+                                         feature_cols=feature_cols,
+                                         label_col=0,
+                                         is_train=True)
+        tst_fea, tst_lbl = to_supervised(raw_tst_data,
+                                         n_in,
+                                         n_out,
+                                         feature_cols=feature_cols,
+                                         label_col=0,
+                                         is_train=False)
         # write final train & test data to TFRecord
         data_to_tf_record(trn_fea,
                           trn_lbl,

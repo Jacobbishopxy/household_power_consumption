@@ -6,9 +6,11 @@
 import os
 import sys
 from typing import Union, List
+import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tensorboard import program
+from pprint import pprint
 
 
 def crash_proof():
@@ -55,3 +57,23 @@ def files_exist(file_path: Union[str, List[str]]) -> bool:
             return False
     else:
         raise ValueError('file_path should either be str or List[str]')
+
+
+def print_features_labels_name(data: pd.DataFrame,
+                               feature_cols: Union[List[int], List[List[int]]],
+                               label_col: int):
+    name_cols = np.array(data.columns)
+
+    if all(isinstance(i, List) for i in feature_cols):
+        fc = [name_cols[i].tolist() for i in feature_cols]
+    elif all(isinstance(i, int) for i in feature_cols):
+        fc = name_cols[feature_cols].tolist()
+    else:
+        raise ValueError("feature_cols type error")
+
+    lc = name_cols[[label_col]].tolist()
+
+    print('features name: ')
+    pprint(fc)
+    print('label name: ')
+    pprint(lc)
