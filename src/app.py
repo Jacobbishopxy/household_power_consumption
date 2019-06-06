@@ -6,7 +6,7 @@
 
 from data_preprocessing import tf_records_preprocessing
 from workflow_custom_estimator import crash_proof, estimator_from_model_fn
-from networks import create_multihead_model, create_vanilla_model
+from networks import create_multihead_model, create_multichannel_model
 
 RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
 
@@ -31,7 +31,7 @@ def univ_test():
                                 epochs=epochs,
                                 consistent_model=False,
                                 learning_rate=1e-3,
-                                network_fn=create_vanilla_model,
+                                network_fn=create_multichannel_model,
                                 batch_norm=True)
 
     return e

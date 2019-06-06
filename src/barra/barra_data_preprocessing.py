@@ -35,14 +35,14 @@ def split_data(data: pd.DataFrame, train_size_pct: float):
     return data.iloc[:loc, :], data.iloc[loc:, :]
 
 
-def tf_record_preprocessing(n_in: int,
-                            n_out: int,
-                            raw_data_path: str,
-                            tf_records_name: str,
-                            feature_cols: Union[List[int], List[List[int]]],
-                            label_col: int,
-                            factor_type: FactorType,
-                            train_size_pct: float = .8):
+def tf_records_preprocessing(n_in: int,
+                             n_out: int,
+                             raw_data_path: str,
+                             tf_records_name: str,
+                             feature_cols: Union[List[int], List[List[int]]],
+                             label_col: int,
+                             factor_type: FactorType,
+                             train_size_pct: float = .8):
     train_path, test_path = generate_tf_records_path(tf_records_name)
 
     if not files_exist([train_path, test_path]):
@@ -82,10 +82,10 @@ if __name__ == '__main__':
 
     N_IN, N_OUT, FEATURE_COLS, LABEL_COL = 14, 7, [0], 0
 
-    tf_record_preprocessing(n_in=N_IN,
-                            n_out=N_OUT,
-                            raw_data_path=RAW_DATA_PATH,
-                            tf_records_name=TF_RECORDS_NAME,
-                            feature_cols=FEATURE_COLS,
-                            label_col=LABEL_COL,
-                            factor_type=FactorType.STYLE)
+    tf_records_preprocessing(n_in=N_IN,
+                             n_out=N_OUT,
+                             raw_data_path=RAW_DATA_PATH,
+                             tf_records_name=TF_RECORDS_NAME,
+                             feature_cols=FEATURE_COLS,
+                             label_col=LABEL_COL,
+                             factor_type=FactorType.STYLE)

@@ -8,7 +8,7 @@ import tensorflow as tf  # do not remove this line, otherwise launch_tb will fai
 from tensorflow_estimator import estimator as est
 
 from workflow_custom_estimator import model_fn_default
-from networks import create_vanilla_model
+from networks import create_multichannel_model
 from input_functions import set_input_fn_tf_record
 from utils import create_model_dir, launch_tb, crash_proof
 
@@ -21,7 +21,7 @@ def estimator_from_model_fn(shape_in: Union[Tuple[int, int], List[Tuple[int, int
                             model_dir: str = r'.\tmp\test',
                             consistent_model: bool = True,
                             model_fn=model_fn_default,
-                            network_fn=create_vanilla_model):
+                            network_fn=create_multichannel_model):
     model_dir = create_model_dir(model_dir, consistent_model)
 
     params = {

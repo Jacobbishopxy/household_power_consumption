@@ -38,7 +38,9 @@ def create_compiled_model(shape_in: Tuple[int, int], shape_out: Tuple[int]):
     return model
 
 
-def create_vanilla_model(shape_in: Tuple[int, int], shape_out: Tuple[int], batch_norm: bool = False):
+def create_multichannel_model(shape_in: Tuple[int, int],
+                              shape_out: Tuple[int],
+                              batch_norm: bool = False):
     n_out = shape_out[0]
 
     with tf.name_scope('keras_model'):

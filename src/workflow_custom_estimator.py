@@ -12,7 +12,7 @@ import tensorflow as tf
 from tensorflow_estimator import estimator as est
 from tensorflow.python.ops import math_ops
 
-from networks import create_compiled_model, model_to_estimator, create_vanilla_model
+from networks import create_compiled_model, model_to_estimator, create_multichannel_model
 from input_functions import set_input_fn_csv, set_input_fn_tf_record
 from data_preprocessing import read_data_from_csv, split_data, to_supervised
 from utils import crash_proof, create_model_dir, launch_tb
@@ -218,7 +218,7 @@ def estimator_from_model_fn(shape_in: Union[Tuple[int, int], List[Tuple[int, int
                             activate_tb: bool = True,
                             n_checkpoints: int = 1,
                             model_fn=model_fn_default,
-                            network_fn=create_vanilla_model,
+                            network_fn=create_multichannel_model,
                             learning_rate: float = None,
                             batch_norm: bool = False):
     """
