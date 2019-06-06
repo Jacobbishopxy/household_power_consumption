@@ -12,12 +12,11 @@ RAW_DATA_PATH = '../data/household_power_consumption_days.csv'
 
 
 def univ_test():
-    tf_records_name = 'uni_var_train'
-
-    n_in, n_out, feature_cols = 14, 7, [0]
-    epochs = 20
+    n_in, n_out, feature_cols = 21, 7, [0]
+    epochs = 200
 
     shape_in, shape_out = (n_in, len(feature_cols)), (n_out,)
+    tf_records_name = f'uni_var-{shape_in}-{shape_out}'
 
     tf_records_preprocessing(n_in=n_in,
                              n_out=n_out,
@@ -30,20 +29,19 @@ def univ_test():
                                 tf_records_name=tf_records_name,
                                 epochs=epochs,
                                 consistent_model=False,
-                                learning_rate=1e-3,
+                                learning_rate=1,
                                 network_fn=create_multichannel_model,
-                                batch_norm=True)
+                                batch_norm=True,
+                                batch_size=80
+                                )
 
     return e
 
 
 def multi_head_test():
-
-    tf_records_name = 'multihead'
-
     n_in, n_out, feature_cols = 14, 7, [[i] for i in range(8)]
-    epochs = 20
 
+    tf_records_name = f'multihead-{n_in}-{n_out}'
     shape_in, shape_out = [(n_in, len(i)) for i in feature_cols], (n_out,)
 
     tf_records_preprocessing(n_in=n_in,
@@ -56,10 +54,12 @@ def multi_head_test():
         shape_in=shape_in,
         shape_out=shape_out,
         tf_records_name=tf_records_name,
-        epochs=epochs,
+        epochs=20,
         consistent_model=False,
-        learning_rate=1e-3,
+        learning_rate=1,
         network_fn=create_multihead_model,
+        batch_size=10,
+        batch_norm=False
     )
 
     return e

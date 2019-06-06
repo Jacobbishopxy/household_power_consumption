@@ -4,8 +4,9 @@
 """
 
 from typing import List, Tuple, Optional
-
 import tensorflow as tf
+
+from utils_single_layer import create_conv1d, create_fully_connected
 
 
 def model_to_estimator(keras_model, model_dir: Optional[str] = None):
@@ -51,91 +52,43 @@ def create_multichannel_model(shape_in: Tuple[int, int],
         else:
             norm_layer = input_layer
 
-        # conv1
-        if batch_norm:
-            conv1 = tf.keras.layers.Conv1D(filters=16,
-                                           kernel_size=3,
-                                           padding='same',
-                                           activation=None,
-                                           use_bias=False)(norm_layer)
-            conv1 = tf.keras.layers.BatchNormalization()(conv1)
-            conv1 = tf.keras.layers.ReLU()(conv1)
-            conv1 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv1)
-        else:
-            conv1 = tf.keras.layers.Conv1D(filters=16,
-                                           kernel_size=3,
-                                           activation='relu',
-                                           padding='same'
-                                           )(norm_layer)
-            conv1 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv1)
+        # conv1d * 2
+        conv1 = create_conv1d(norm_layer, 16, 3, 'same', 2, batch_norm)
+        conv2 = create_conv1d(conv1, 32, 3, 'same', 2, batch_norm)
 
-        # conv2
-        if batch_norm:
-            conv2 = tf.keras.layers.Conv1D(filters=32,
-                                           kernel_size=3,
-                                           padding='same',
-                                           activation=None,
-                                           use_bias=False)(conv1)
-            conv2 = tf.keras.layers.BatchNormalization()(conv2)
-            conv2 = tf.keras.layers.ReLU()(conv2)
-            conv2 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv2)
-        else:
-            conv2 = tf.keras.layers.Conv1D(filters=32,
-                                           kernel_size=3,
-                                           activation='relu',
-                                           padding='same'
-                                           )(conv1)
-            conv2 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv2)
+        # flatten
+        flatten = tf.keras.layers.Flatten()(conv2)
 
-        # dense
-        dns = tf.keras.layers.Flatten()(conv2)
-        if batch_norm:
-            dns = tf.keras.layers.BatchNormalization()(dns)
-        dns = tf.keras.layers.Dense(56, activation='relu')(dns)
-
-        # dense1
-        if batch_norm:
-            dns1 = tf.keras.layers.BatchNormalization()(dns)
-        dns1 = tf.keras.layers.Dense(28, activation='relu')(dns)
-
-        # dense2(output layer)
-        if batch_norm:
-            dns2 = tf.keras.layers.BatchNormalization()(dns1)
-            dns2 = tf.keras.layers.Dense(n_out)(dns2)
-        else:
-            dns2 = tf.keras.layers.Dense(n_out)(dns1)
+        dns = create_fully_connected(flatten, 56, batch_norm)
+        dns1 = create_fully_connected(dns, 28, batch_norm)
+        dns2 = create_fully_connected(dns1, n_out, batch_norm)
 
         model = tf.keras.Model(inputs=input_layer, outputs=dns2)
     return model
 
 
 def create_multihead_model(shape_in: List[Tuple[int, int]],
-                           shape_out: Tuple[int]):
+                           shape_out: Tuple[int],
+                           batch_norm: bool = False):
     n_out = shape_out[0]
 
     with tf.name_scope('keras_model'):
         in_layers, out_layers = [], []
         for idx, val in enumerate(shape_in):
             inputs = tf.keras.layers.Input(shape=val, name=f'input_{idx}')
-            conv1 = tf.keras.layers.Conv1D(filters=32,
-                                           kernel_size=3,
-                                           activation='relu',
-                                           padding='same')(inputs)
-            conv2 = tf.keras.layers.Conv1D(filters=32,
-                                           kernel_size=3,
-                                           activation='relu',
-                                           padding='same')(conv1)
-            pool1 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv2)
-            flat = tf.layers.Flatten()(pool1)
 
+            conv1 = create_conv1d(inputs, 16, 3, 'same', 2, batch_norm)
+            conv2 = create_conv1d(conv1, 16, 3, 'same', 2, batch_norm)
+
+            flat = tf.layers.Flatten()(conv2)
             in_layers.append(inputs)
             out_layers.append(flat)
 
         merged = tf.keras.layers.concatenate(out_layers)
 
-        dense1 = tf.keras.layers.Dense(200, activation='relu')(merged)
-        dense2 = tf.keras.layers.Dense(100, activation='relu')(dense1)
-        outputs = tf.keras.layers.Dense(n_out)(dense2)
+        dense1 = create_fully_connected(merged, 56)
+        dense2 = create_fully_connected(dense1, 28)
+        outputs = create_fully_connected(dense2, n_out)
 
         model = tf.keras.Model(inputs=in_layers, outputs=outputs)
     return model
