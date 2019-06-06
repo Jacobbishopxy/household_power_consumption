@@ -154,9 +154,9 @@ def model_fn_default(features: Dict[str, tf.Tensor],
         fea = [features[i] for i in features.keys()]
 
     network = network_fn(**network_params)
+    network.summary()
 
     if mode == est.ModeKeys.PREDICT:
-        print('~~~~~mode=predict~~~~~')
         result = network(fea)
 
         predictions = {
@@ -171,7 +171,6 @@ def model_fn_default(features: Dict[str, tf.Tensor],
         )
 
     if mode == est.ModeKeys.TRAIN:
-        print('~~~~~mode=train~~~~~')
         result = network(fea)
 
         optimizer = tf.train.AdamOptimizer()
@@ -191,7 +190,6 @@ def model_fn_default(features: Dict[str, tf.Tensor],
         )
 
     if mode == est.ModeKeys.EVAL:
-        print('~~~~~mode=eval~~~~~')
         result = network(fea)
 
         loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
@@ -213,7 +211,7 @@ def estimator_from_model_fn(shape_in: Union[Tuple[int, int], List[Tuple[int, int
                             tf_records_name: str,
                             batch_size: int = 10,
                             epochs: int = 10,
-                            model_dir: str = r'..\tmp\test',
+                            model_dir: str = r'.\tmp\test',
                             consistent_model: bool = True,
                             activate_tb: bool = True,
                             n_checkpoints: int = 1,

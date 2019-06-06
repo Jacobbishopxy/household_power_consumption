@@ -65,7 +65,8 @@ def create_multichannel_model(shape_in: Tuple[int, int],
             conv1 = tf.keras.layers.Conv1D(filters=16,
                                            kernel_size=3,
                                            activation='relu',
-                                           padding='same')(norm_layer)
+                                           padding='same'
+                                           )(norm_layer)
             conv1 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv1)
 
         # conv2
@@ -82,14 +83,20 @@ def create_multichannel_model(shape_in: Tuple[int, int],
             conv2 = tf.keras.layers.Conv1D(filters=32,
                                            kernel_size=3,
                                            activation='relu',
-                                           padding='same')(conv1)
+                                           padding='same'
+                                           )(conv1)
             conv2 = tf.keras.layers.MaxPooling1D(pool_size=2)(conv2)
 
-        # dense1
-        dns1 = tf.keras.layers.Flatten()(conv2)
+        # dense
+        dns = tf.keras.layers.Flatten()(conv2)
         if batch_norm:
-            dns1 = tf.keras.layers.BatchNormalization()(dns1)
-        dns1 = tf.keras.layers.Dense(28, activation='relu')(dns1)
+            dns = tf.keras.layers.BatchNormalization()(dns)
+        dns = tf.keras.layers.Dense(56, activation='relu')(dns)
+
+        # dense1
+        if batch_norm:
+            dns1 = tf.keras.layers.BatchNormalization()(dns)
+        dns1 = tf.keras.layers.Dense(28, activation='relu')(dns)
 
         # dense2(output layer)
         if batch_norm:
