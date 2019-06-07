@@ -4,8 +4,8 @@
 """
 
 from utils import crash_proof
+from workflow_custom_estimator import estimator_from_model_fn
 
-from barra.barra_workflow import estimator_from_model_fn
 from barra.barra_data_preprocessing import FactorType, tf_records_preprocessing
 
 RAW_DATA_PATH = r'.\data\factor_return.csv'
