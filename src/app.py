@@ -31,9 +31,8 @@ def univ_test():
                                 consistent_model=False,
                                 learning_rate=1,
                                 network_fn=create_multichannel_model,
-                                batch_norm=True,
-                                batch_size=80
-                                )
+                                batch_norm=False,
+                                batch_size=80)
 
     return e
 
@@ -65,9 +64,41 @@ def multi_head_test():
     return e
 
 
+def check_univ_preds_and_labels():
+    from utils import read_labels_and_predictions
+    from workflow_custom_estimator import set_input_fn_tf_record, model_fn_default
+
+    tfr_name = f'uni_var-(21, 1)-(7,)'
+
+    n_in, n_out, feature_cols = 21, 7, [0]
+
+    shape_in, shape_out = (n_in, len(feature_cols)), (n_out,)
+
+    params = {
+        'network_fn': create_multichannel_model,
+        'network_params': {
+            'shape_in': shape_in,
+            'shape_out': shape_out,
+        },
+    }
+
+    l, p = read_labels_and_predictions(input_fn=lambda: set_input_fn_tf_record(tfr_name,
+                                                                               is_train=True,
+                                                                               shape_in=shape_in,
+                                                                               shape_out=shape_out,
+                                                                               batch_size=10),
+                                       model_fn=model_fn_default,
+                                       model_fn_params=params,
+                                       checkpoint_path=r'.\tmp\test\20190612-100424',
+                                       print_each_batch=True)
+    return l, p
+
+
 if __name__ == '__main__':
     crash_proof()
 
     # e1 = univ_test()
 
-    e2 = multi_head_test()
+    check_univ_preds_and_labels()
+
+    # e2 = multi_head_test()
