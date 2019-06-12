@@ -64,8 +64,8 @@ def multi_head_test():
     return e
 
 
-def check_univ_preds_and_labels():
-    from utils import read_labels_and_predictions
+def check_univ_labels_and_preds():
+    from utils import read_labels_and_predictions, check_tf_record
     from workflow_custom_estimator import set_input_fn_tf_record, model_fn_default
 
     tfr_name = f'uni_var-(21, 1)-(7,)'
@@ -81,6 +81,26 @@ def check_univ_preds_and_labels():
             'shape_out': shape_out,
         },
     }
+
+    d = set_input_fn_tf_record(tfr_name,
+                               is_train=True,
+                               shape_in=shape_in,
+                               shape_out=shape_out,
+                               batch_size=10)
+    dd = d.make_one_shot_iterator().get_next()
+
+    import tensorflow as tf
+
+    with tf.Session() as sess:
+        r = sess.run(dd)
+        print(r)
+
+    # r = check_tf_record(lambda: set_input_fn_tf_record(tfr_name,
+    #                                                    is_train=True,
+    #                                                    shape_in=shape_in,
+    #                                                    shape_out=shape_out,
+    #                                                    batch_size=10))
+    # print(r)
 
     l, p = read_labels_and_predictions(input_fn=lambda: set_input_fn_tf_record(tfr_name,
                                                                                is_train=True,
@@ -99,6 +119,6 @@ if __name__ == '__main__':
 
     # e1 = univ_test()
 
-    check_univ_preds_and_labels()
+    check_univ_labels_and_preds()
 
     # e2 = multi_head_test()

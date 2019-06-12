@@ -157,43 +157,50 @@ def model_fn_default(features: Dict[str, tf.Tensor],
     network.summary()
 
     if mode == est.ModeKeys.PREDICT:
-        result = network(fea)
+        result = network(fea, training=False)
 
-        predictions = {
-            'prices': tf.squeeze(result, axis=1),
-        }
         return est.EstimatorSpec(
             mode=mode,
-            predictions=predictions,
+            predictions=result,
             export_outputs={
-                'prices': est.export.PredictOutput(predictions)
+                'result': est.export.PredictOutput(result)
             }
         )
 
     if mode == est.ModeKeys.TRAIN:
-        result = network(fea)
+        result = network(fea, training=True)
 
         optimizer = tf.train.AdamOptimizer()
-        loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
-        mape = tf.reduce_mean(tf.abs(tf.divide(tf.subtract(result, labels), (labels + 1e-10))))
-        train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_or_create_global_step())
+        # mse = tf.metrics.mean_squared_error(labels, result)
+        mse = tf.losses.mean_squared_error(labels, result)
+        # rmse = tf.metrics.root_mean_squared_error(labels, result)
+        # mae = tf.metrics.mean_absolute_error(labels, result)
+        mape = tf.reduce_mean(tf.abs(tf.divide(tf.subtract(result, labels),
+                                               tf.add(labels, tf.constant(1e-10)))))
+        train_op = optimizer.minimize(loss=mse, global_step=tf.train.get_or_create_global_step())
 
         tf.identity(learning_rate, 'learning_rate')
-        tf.identity(loss, 'loss_mse')
+        tf.identity(mse, 'loss_mse')
+        # tf.identity(rmse, 'loss_rmse')
+        # tf.identity(mae, 'loss_mae')
         tf.identity(mape, 'loss_mape')  # 若此处identity如果与下面tf.summary同名，系统仍会认为是两个变量，因此后者会变成mape_1
+        # tf.summary.scalar('mse', mse)
+        # tf.summary.scalar('rmse', rmse)
+        # tf.summary.scalar('mae', mae)
         tf.summary.scalar('mape', mape)  # 将mape画在名为'MAPE'的图上
 
         return est.EstimatorSpec(
             mode=mode,
-            loss=loss,
+            loss=mse,
             train_op=train_op,
         )
 
     if mode == est.ModeKeys.EVAL:
-        result = network(fea)
+        result = network(fea, training=False)
 
-        loss = tf.losses.mean_squared_error(labels=labels, predictions=result)
-        mape = tf.metrics.mean(math_ops.abs(math_ops.div_no_nan(math_ops.subtract(labels, result), labels + 1e-10)))
+        mse = tf.losses.mean_squared_error(labels=labels, predictions=result)
+        mape = tf.metrics.mean(math_ops.abs(math_ops.div_no_nan(math_ops.subtract(labels, result),
+                                                                tf.add(labels, tf.constant(1e-10)))))
 
         eval_metric_ops = {
             'mape': mape,  # 将eval的mape值记录在名称为mape的图上
@@ -201,7 +208,7 @@ def model_fn_default(features: Dict[str, tf.Tensor],
 
         return est.EstimatorSpec(
             mode=mode,
-            loss=loss,
+            loss=mse,
             eval_metric_ops=eval_metric_ops
         )
 
@@ -276,6 +283,21 @@ def estimator_from_model_fn(shape_in: Union[Tuple[int, int], List[Tuple[int, int
         )
 
         print(result)
+
+        prd = estimator.predict(
+            input_fn=lambda: set_input_fn_tf_record(tf_records_name,
+                                                    is_train=False,
+                                                    shape_in=shape_in,
+                                                    shape_out=shape_out,
+                                                    batch_size=batch_size)
+        )
+
+        n = 5
+        for i in prd:
+            print(i, f' len: {len(i)}')
+            n -= 1
+            if n == 0:
+                break
 
     if activate_tb:
         launch_tb(model_dir)

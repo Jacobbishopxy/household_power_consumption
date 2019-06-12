@@ -96,10 +96,10 @@ def print_features_labels_name(data: pd.DataFrame,
 
 
 def check_tf_record(input_fn: Callable):
-    d = input_fn()
+    d = input_fn().make_one_shot_iterator().get_next()
 
     with tf.Session() as sess:
-        r = sess.run(d.make_one_shot_iterator().get_next())
+        r = sess.run(d)
 
     return r
 
@@ -132,14 +132,14 @@ def read_labels_and_predictions(input_fn: Callable,
 
         while True:
             try:
-                preds, lbls = sess.run([labels, predictions])
+                lbls, preds = sess.run([labels, predictions])
                 if print_each_batch:
-                    print('preds:')
-                    pprint(preds)
                     print('lbls:')
                     pprint(lbls)
-                prediction_values.append(preds)
+                    print('preds:')
+                    pprint(preds)
                 label_values.append(lbls)
+                prediction_values.append(preds)
             except tf.errors.OutOfRangeError:
                 break
 

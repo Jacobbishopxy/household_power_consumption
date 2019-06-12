@@ -4,9 +4,11 @@
 """
 
 from typing import Union, List, Dict
+import numpy as np
 import pandas as pd
 import math
 from enum import Enum
+from sklearn.preprocessing import QuantileTransformer
 
 from data_preprocessing import to_supervised, data_to_tf_records
 from utils import files_exist, generate_tf_records_path
@@ -33,6 +35,11 @@ def get_data_by_type(data: pd.DataFrame, factor_type: FactorType) -> pd.DataFram
 def split_data(data: pd.DataFrame, train_size_pct: float):
     loc = math.floor(data.shape[0] * train_size_pct)
     return data.iloc[:loc, :], data.iloc[loc:, :]
+
+
+def transform_labels(data: np.ndarray):
+    quantile_transformer = QuantileTransformer(random_state=0)
+    return quantile_transformer.fit_transform(data)
 
 
 def tf_records_preprocessing(n_in: int,
@@ -67,13 +74,16 @@ def tf_records_preprocessing(n_in: int,
                                          feature_cols=feature_cols,
                                          is_train=True)
 
+        # trn_lbl = transform_labels(trn_lbl)
+        # tst_lbl = transform_labels(tst_lbl)
+
         data_to_tf_records(trn_fea,
                            trn_lbl,
                            tst_fea,
                            tst_lbl,
                            tf_records_name)
     else:
-        print('files already exist, if new records pls rename')
+        print('files already exist, if new records pls rename, or delete current records if updated')
 
 
 if __name__ == '__main__':
