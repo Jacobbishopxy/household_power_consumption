@@ -6,10 +6,11 @@
 import sys
 from os.path import isfile, realpath, dirname, join
 from os import makedirs
-from typing import Union, List
+from typing import Union, List, Callable, Dict, Any
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow_estimator import estimator as est
 from tensorboard import program
 from pprint import pprint
 
@@ -92,3 +93,54 @@ def print_features_labels_name(data: pd.DataFrame,
     pprint(fc)
     print('label name: ')
     pprint(lc)
+
+
+def check_tf_record(input_fn: Callable):
+    d = input_fn()
+
+    with tf.Session() as sess:
+        r = sess.run(d.make_one_shot_iterator().get_next())
+
+    return r
+
+
+def read_labels_and_predictions(input_fn: Callable,
+                                model_fn: Callable,
+                                model_fn_params: Dict[str, Any],
+                                checkpoint_path: str,
+                                print_each_batch: bool = False):
+    """
+    to check labels and prediction
+    :param input_fn:
+    :param model_fn:
+    :param model_fn_params:
+    :param checkpoint_path:
+    :param print_each_batch:
+    :return:
+    """
+    features, labels = input_fn().make_one_shot_iterator().get_next()
+
+    predictions = model_fn(features, labels, mode=est.ModeKeys.PREDICT, params=model_fn_params).predictions
+
+    saver = tf.train.Saver()
+    with tf.Session() as sess:
+        ckpt = tf.train.get_checkpoint_state(checkpoint_path)
+        saver.restore(sess, ckpt.model_checkpoint_path)
+
+        prediction_values = []
+        label_values = []
+
+        while True:
+            try:
+                preds, lbls = sess.run([labels, predictions])
+                if print_each_batch:
+                    print('preds:')
+                    pprint(preds)
+                    print('lbls:')
+                    pprint(lbls)
+                prediction_values.append(preds)
+                label_values.append(lbls)
+            except tf.errors.OutOfRangeError:
+                break
+
+    return label_values, prediction_values
