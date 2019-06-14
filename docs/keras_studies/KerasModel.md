@@ -123,7 +123,7 @@ such as the time of day when the headline was posted, etc. The model will also b
 two loss functions. Using the main loss function earlier in a model is a good regularization
 mechanism for deep models.
 
-![img](./img/multi-input-multi-output-graph.png)
+![img](../img/multi-input-multi-output-graph.png)
 
 The main input will receive the headline, as a sequence of integers (each integer encodes a word).
 The integers will be between 1 and 10,000 (a vocabulary of 10,000 words) and the sequences will be

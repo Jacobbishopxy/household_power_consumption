@@ -29,7 +29,6 @@ def univ_test():
                                 tf_records_name=tf_records_name,
                                 epochs=epochs,
                                 consistent_model=False,
-                                learning_rate=1,
                                 network_fn=create_multichannel_model,
                                 batch_norm=False,
                                 batch_size=80)
@@ -95,12 +94,12 @@ def check_univ_labels_and_preds():
         r = sess.run(dd)
         print(r)
 
-    # r = check_tf_record(lambda: set_input_fn_tf_record(tfr_name,
-    #                                                    is_train=True,
-    #                                                    shape_in=shape_in,
-    #                                                    shape_out=shape_out,
-    #                                                    batch_size=10))
-    # print(r)
+    r = check_tf_record(lambda: set_input_fn_tf_record(tfr_name,
+                                                       is_train=True,
+                                                       shape_in=shape_in,
+                                                       shape_out=shape_out,
+                                                       batch_size=10))
+    print(r)
 
     l, p = read_labels_and_predictions(input_fn=lambda: set_input_fn_tf_record(tfr_name,
                                                                                is_train=True,
@@ -117,8 +116,8 @@ def check_univ_labels_and_preds():
 if __name__ == '__main__':
     crash_proof()
 
-    # e1 = univ_test()
+    e1 = univ_test()
 
-    check_univ_labels_and_preds()
+    # check_univ_labels_and_preds()
 
     # e2 = multi_head_test()

@@ -10,12 +10,91 @@ In real world, data is better to be separated into three parts: train, evaluate,
 from typing import Union, List, Tuple, Optional, Dict, Any
 import tensorflow as tf
 from tensorflow_estimator import estimator as est
-from tensorflow.python.ops import math_ops
+from enum import Enum
+from functools import partial
 
 from networks import create_compiled_model, model_to_estimator, create_multichannel_model
 from input_functions import set_input_fn_csv, set_input_fn_tf_record
 from data_preprocessing import read_data_from_csv, split_data, to_supervised
 from utils import crash_proof, create_model_dir, launch_tb
+
+
+def _calc_mse(labels: tf.Tensor, predictions: tf.Tensor, training: bool = True):
+    if training:
+        return tf.reduce_mean(tf.square(tf.subtract(predictions, labels)))
+    else:
+        return tf.metrics.mean_squared_error(labels, predictions)
+
+
+def _calc_rmse(labels: tf.Tensor, predictions: tf.Tensor, training: bool = True):
+    if training:
+        return tf.sqrt(_calc_mse(labels, predictions, training))
+    else:
+        return tf.metrics.root_mean_squared_error(labels, predictions)
+
+
+def _calc_mae(labels: tf.Tensor, predictions: tf.Tensor, training: bool = True):
+    if training:
+        return tf.reduce_mean(tf.abs(tf.subtract(predictions, labels)))
+    else:
+        return tf.metrics.mean_absolute_error(labels, predictions)
+
+
+def _calc_mape(labels: tf.Tensor, predictions: tf.Tensor, training: bool = True):
+    if training:
+        return tf.reduce_mean(tf.abs(tf.divide(tf.subtract(predictions, labels),
+                                               tf.add(labels, tf.constant(1e-10)))))
+    else:
+        return tf.metrics.mean(tf.abs(tf.divide(tf.subtract(predictions, labels),
+                                                tf.add(labels, tf.constant(1e-10)))))
+
+
+class InspectionIndicator(Enum):
+    MSE = partial(_calc_mse)
+    RMSE = partial(_calc_rmse)
+    MAE = partial(_calc_mae)
+    MAPE = partial(_calc_mape)
+
+    def __call__(self, labels, predictions, training: bool = True):
+        return self.value(labels, predictions, training=training)
+
+
+def _get_indicators(labels: tf.Tensor,
+                    predictions: tf.Tensor,
+                    inspection_indicators: List[str],
+                    training: bool = True):
+    if training:
+        if 'MSE' in inspection_indicators:
+            mse = InspectionIndicator.MSE(labels, predictions)
+            tf.identity(mse, 'loss_mse')
+            tf.summary.scalar('mse', mse)
+        if 'RMSE' in inspection_indicators:
+            rmse = InspectionIndicator.RMSE(labels, predictions)
+            tf.identity(rmse, 'loss_rmse')
+            tf.summary.scalar('rmse', rmse)
+        if 'MAE' in inspection_indicators:
+            mae = InspectionIndicator.MAE(labels, predictions)
+            tf.identity(mae, 'loss_mae')
+            tf.summary.scalar('mae', mae)
+        if 'MAPE' in inspection_indicators:
+            mape = InspectionIndicator.MAPE(labels, predictions)
+            tf.identity(mape, 'loss_mape')
+            tf.summary.scalar('mape', mape)
+    else:
+        _eval_metric_ops = {}
+        if 'MSE' in inspection_indicators:
+            mse = InspectionIndicator.MSE(labels, predictions, training=False)
+            _eval_metric_ops.update({'mse': mse})
+        if 'RMSE' in inspection_indicators:
+            rmse = InspectionIndicator.RMSE(labels, predictions, training=False)
+            _eval_metric_ops.update({'rmse': rmse})
+        if 'MAE' in inspection_indicators:
+            mae = InspectionIndicator.MAE(labels, predictions, training=False)
+            _eval_metric_ops.update({'mae': mae})
+        if 'MAPE' in inspection_indicators:
+            mape = InspectionIndicator.MAPE(labels, predictions, training=False)
+            _eval_metric_ops.update({'mape': mape})
+        return _eval_metric_ops
 
 
 def estimator_from_csv(shape_in: Tuple[int, int],
@@ -145,8 +224,9 @@ def model_fn_default(features: Dict[str, tf.Tensor],
     """
     network_fn = params.get('network_fn')
     network_params = params.get('network_params')
-
-    learning_rate = params.get('learning_rate', 1e-4)
+    learning_rate = params.get('learning_rate', 1e-3)
+    _ii = ['MSE', 'RMSE', 'MAE', 'MAPE']
+    inspection_indicators = [i.upper() for i in params.get('inspection_indicators', _ii)]
 
     if len(features.keys()) == 1:
         fea = features['input_0']
@@ -157,58 +237,43 @@ def model_fn_default(features: Dict[str, tf.Tensor],
     network.summary()
 
     if mode == est.ModeKeys.PREDICT:
-        result = network(fea, training=False)
+        predictions = network(fea, training=False)
 
         return est.EstimatorSpec(
             mode=mode,
-            predictions=result,
+            predictions=predictions,
             export_outputs={
-                'result': est.export.PredictOutput(result)
+                'result': est.export.PredictOutput(predictions)
             }
         )
 
     if mode == est.ModeKeys.TRAIN:
-        result = network(fea, training=True)
+        predictions = network(fea, training=True)
 
-        optimizer = tf.train.AdamOptimizer()
-        # mse = tf.metrics.mean_squared_error(labels, result)
-        mse = tf.losses.mean_squared_error(labels, result)
-        # rmse = tf.metrics.root_mean_squared_error(labels, result)
-        # mae = tf.metrics.mean_absolute_error(labels, result)
-        mape = tf.reduce_mean(tf.abs(tf.divide(tf.subtract(result, labels),
-                                               tf.add(labels, tf.constant(1e-10)))))
-        train_op = optimizer.minimize(loss=mse, global_step=tf.train.get_or_create_global_step())
+        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+        loss = tf.losses.mean_squared_error(labels, predictions)
+        train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_or_create_global_step())
 
         tf.identity(learning_rate, 'learning_rate')
-        tf.identity(mse, 'loss_mse')
-        # tf.identity(rmse, 'loss_rmse')
-        # tf.identity(mae, 'loss_mae')
-        tf.identity(mape, 'loss_mape')  # 若此处identity如果与下面tf.summary同名，系统仍会认为是两个变量，因此后者会变成mape_1
-        # tf.summary.scalar('mse', mse)
-        # tf.summary.scalar('rmse', rmse)
-        # tf.summary.scalar('mae', mae)
-        tf.summary.scalar('mape', mape)  # 将mape画在名为'MAPE'的图上
+
+        _get_indicators(labels, predictions, inspection_indicators)
 
         return est.EstimatorSpec(
             mode=mode,
-            loss=mse,
+            loss=loss,
             train_op=train_op,
         )
 
     if mode == est.ModeKeys.EVAL:
-        result = network(fea, training=False)
+        predictions = network(fea, training=False)
 
-        mse = tf.losses.mean_squared_error(labels=labels, predictions=result)
-        mape = tf.metrics.mean(math_ops.abs(math_ops.div_no_nan(math_ops.subtract(labels, result),
-                                                                tf.add(labels, tf.constant(1e-10)))))
+        loss = tf.losses.mean_squared_error(labels=labels, predictions=predictions)
 
-        eval_metric_ops = {
-            'mape': mape,  # 将eval的mape值记录在名称为mape的图上
-        }
+        eval_metric_ops = _get_indicators(labels, predictions, inspection_indicators, training=False)
 
         return est.EstimatorSpec(
             mode=mode,
-            loss=mse,
+            loss=loss,
             eval_metric_ops=eval_metric_ops
         )
 
